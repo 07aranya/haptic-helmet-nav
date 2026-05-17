@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Haptic Helmet Nav</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #0f0f0f; color: #f0f0f0; min-height: 100vh; }
+  .container { max-width: 480px; margin: 0 auto; padding: 20px; }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; color: #fff; }
+  .sub { font-size: 13px; color: #888; margin-bottom: 24px; }
+  .card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  .card h2 { font-size: 13px; font-weight: 500; color: #888; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 12px; }
+  input { width: 100%; background: #111; border: 1px solid #333; border-radius: 8px; padding: 10px 12px; color: #fff; font-size: 14px; margin-bottom: 10px; outline: none; }
+  input:focus { border-color: #555; }
+  button { width: 100%; padding: 12px; border-radius: 8px; border: none; font-size: 14px; font-weight: 500; cursor: pointer; transition: opacity .2s; }
+  button:disabled { opacity: .4; cursor: default; }
+  .btn-blue  { background: #2563eb; color: #fff; }
+  .btn-green { background: #16a34a; color: #fff; }
+  .btn-red   { background: #dc2626; color: #fff; }
+  .btn-amber { background: #d97706; color: #fff; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .dot-red    { background: #ef4444; }
+  .dot-green  { background: #22c55e; }
+  .dot-amber  { background: #f59e0b; }
+  .status-row { display: flex; align-items: center; font-size: 13px; color: #aaa; margin-bottom: 8px; }
+  .wp-list { margin-top: 8px; }
+  .wp-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #222; font-size: 13px; }
+  .wp-item:last-child { border-bottom: none; }
+  .wp-badge { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+  .badge-L { background: #1d4ed8; }
+  .badge-R { background: #7c3aed; }
+  .badge-A { background: #15803d; }
+  .wp-info { flex: 1; }
+  .wp-dist { font-size: 11px; color: #666; margin-top: 2px; }
+  .wp-done { opacity: .35; text-decoration: line-through; }
+  .progress-bar { height: 4px; background: #222; border-radius: 2px; margin: 8px 0; overflow: hidden; }
+  .progress-fill { height: 100%; background: #2563eb; border-radius: 2px; transition: width .5s; }
+  .sim-info { font-size: 12px; color: #666; margin-top: 6px; }
+  .buzz-flash { animation: flash .3s; }
+  @keyframes flash { 0%,100%{background:#1a1a1a} 50%{background:#1d3a1a} }
+  .log { font-size: 11px; color: #555; font-family: monospace; max-height: 80px; overflow-y: auto; }
+  .log div { padding: 1px 0; }
+  .log .ok  { color: #22c55e; }
+  .log .err { color: #ef4444; }
+  .log .inf { color: #60a5fa; }
+  .speed-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .speed-btn { flex: 1; padding: 8px; background: #222; border: 1px solid #333; border-radius: 6px; color: #aaa; font-size: 12px; cursor: pointer; }
+  .speed-btn.active { background: #1d3a6e; border-color: #2563eb; color: #60a5fa; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🪖 Haptic Helmet</h1>
+  <p class="sub">Navigation via vibration — no eyes needed</p>
+
+  <!-- BLE Card -->
+  <div class="card">
+    <h2>ESP32 Connection</h2>
+    <div class="status-row">
+      <span class="status-dot" id="ble-dot" style="background:#ef4444"></span>
+      <span id="ble-status">Not connected</span>
+    </div>
+    <button class="btn-blue" id="btn-ble" onclick="connectBLE()">Connect to HapticHelmet</button>
+  </div>
+
+  <!-- Route Card -->
+  <div class="card">
+    <h2>Route</h2>
+    <input id="inp-origin" placeholder="Origin (e.g. Pune Railway Station)" />
+    <input id="inp-dest"   placeholder="Destination (e.g. Shaniwar Wada, Pune)" />
+    <button class="btn-green" id="btn-route" onclick="getRoute()" style="margin-bottom:0">
+      Get Route →
+    </button>
+  </div>
+
+  <!-- Route Info -->
+  <div class="card" id="route-card" style="display:none">
+    <h2>Route Info</h2>
+    <div id="route-info" style="font-size:13px;color:#aaa;margin-bottom:12px"></div>
+    <div class="progress-bar"><div class="progress-fill" id="progress" style="width:0%"></div></div>
+    <div class="sim-info" id="sim-info">Simulation not started</div>
+
+    <!-- Simulation speed -->
+    <div style="margin-top:12px;margin-bottom:8px;font-size:12px;color:#666">Simulation speed:</div>
+    <div class="speed-row">
+      <button class="speed-btn active" id="spd-slow"   onclick="setSpeed(1,  this)">Slow (×1)</button>
+      <button class="speed-btn"        id="spd-medium" onclick="setSpeed(5,  this)">Fast (×5)</button>
+      <button class="speed-btn"        id="spd-fast"   onclick="setSpeed(20, this)">Ultra (×20)</button>
+    </div>
+
+    <button class="btn-amber" id="btn-sim" onclick="startSim()" style="margin-bottom:8px">▶ Start Simulation</button>
+    <button class="btn-red"   id="btn-stop" onclick="stopSim()" disabled>■ Stop</button>
+  </div>
+
+  <!-- Waypoints -->
+  <div class="card" id="wp-card" style="display:none">
+    <h2>Turn-by-Turn</h2>
+    <div class="wp-list" id="wp-list"></div>
+  </div>
+
+  <!-- Log -->
+  <div class="card">
+    <h2>Log</h2>
+    <div class="log" id="log"></div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────
+let bleDevice    = null;
+let bleCh        = null;
+let waypoints    = [];
+let pathCoords   = [];
+let simIndex     = 0;   // current position in pathCoords
+let simWpIndex   = 0;   // next waypoint to trigger
+let simTimer     = null;
+let simSpeed     = 1;   // multiplier
+
+const SERVICE_UUID = "12345678-1234-1234-1234-123456789abc";
+const CHAR_UUID    = "abcdefab-cdef-abcd-efab-cdefabcdefab";
+const TRIGGER_M    = 100;   // metres to trigger haptic
+
+// ── Logging ────────────────────────────────────────────────────
+function log(msg, type='inf'){
+  const d = document.getElementById('log');
+  const el = document.createElement('div');
+  el.className = type;
+  el.textContent = new Date().toLocaleTimeString() + '  ' + msg;
+  d.prepend(el);
+  if(d.children.length > 30) d.lastChild.remove();
+}
+
+// ── BLE ────────────────────────────────────────────────────────
+async function connectBLE(){
+  try {
+    log('Scanning for HapticHelmet...');
+    bleDevice = await navigator.bluetooth.requestDevice({
+      filters: [{ name: 'HapticHelmet' }],
+      optionalServices: [SERVICE_UUID]
+    });
+    const server  = await bleDevice.gatt.connect();
+    const service = await server.getPrimaryService(SERVICE_UUID);
+    bleCh         = await service.getCharacteristic(CHAR_UUID);
+
+    document.getElementById('ble-dot').style.background    = '#22c55e';
+    document.getElementById('ble-status').textContent      = 'Connected: ' + bleDevice.name;
+    document.getElementById('btn-ble').textContent         = '✓ Connected';
+    document.getElementById('btn-ble').disabled            = true;
+    log('BLE connected to HapticHelmet', 'ok');
+
+    bleDevice.addEventListener('gattserverdisconnected', () => {
+      document.getElementById('ble-dot').style.background = '#ef4444';
+      document.getElementById('ble-status').textContent   = 'Disconnected';
+      document.getElementById('btn-ble').disabled         = false;
+      document.getElementById('btn-ble').textContent      = 'Connect to HapticHelmet';
+      bleCh = null;
+      log('BLE disconnected', 'err');
+    });
+  } catch(e) {
+    log('BLE error: ' + e.message, 'err');
+  }
+}
+
+async function sendBLE(val){
+  if(!bleCh){ log('BLE not connected', 'err'); return; }
+  try {
+    const enc = new TextEncoder();
+    await bleCh.writeValue(enc.encode(val));
+    log('BLE sent: ' + val, 'ok');
+  } catch(e) {
+    log('BLE send error: ' + e.message, 'err');
+  }
+}
+
+async function sendMotorCmd(cmd){
+  if(!bleCh){ log('BLE not connected — motor command skipped', 'err'); return; }
+  try {
+    await bleCh.writeValue(new Uint8Array([cmd]));
+    log('Motor cmd: 0x0' + cmd, 'ok');
+  } catch(e) {
+    log('Motor error: ' + e.message, 'err');
+  }
+}
+
+// ── Route fetch ────────────────────────────────────────────────
+async function getRoute(){
+  const origin = document.getElementById('inp-origin').value.trim();
+  const dest   = document.getElementById('inp-dest').value.trim();
+  if(!origin || !dest){ log('Enter origin and destination', 'err'); return; }
+
+  log('Fetching route from Google Maps...');
+  document.getElementById('btn-route').disabled = true;
+
+  try {
+    const res  = await fetch('/route', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ origin, destination: dest })
+    });
+    const data = await res.json();
+
+    if(data.error){ log('Maps error: ' + data.error, 'err'); return; }
+
+    waypoints  = data.waypoints;
+    pathCoords = data.path;
+    simIndex   = 0;
+    simWpIndex = 0;
+
+    // Route info
+    document.getElementById('route-info').innerHTML =
+      `<b>${data.start_addr}</b><br>→ <b>${data.end_addr}</b><br>` +
+      `<span style="color:#666">${data.total_dist} · ${data.total_time}</span>`;
+
+    document.getElementById('route-card').style.display = 'block';
+    document.getElementById('wp-card').style.display    = 'block';
+
+    renderWaypoints();
+    log(`Route loaded: ${waypoints.length} turns, ${pathCoords.length} path points`, 'ok');
+  } catch(e) {
+    log('Fetch error: ' + e.message, 'err');
+  } finally {
+    document.getElementById('btn-route').disabled = false;
+  }
+}
+
+// ── Waypoint render ────────────────────────────────────────────
+function renderWaypoints(){
+  const list = document.getElementById('wp-list');
+  list.innerHTML = '';
+  waypoints.forEach((wp, i) => {
+    const div = document.createElement('div');
+    div.className = 'wp-item' + (i < simWpIndex ? ' wp-done' : '');
+    div.id = 'wp-' + i;
+    // Strip HTML tags from instruction
+    const instr = wp.instruction.replace(/<[^>]+>/g,'');
+    div.innerHTML = `
+      <div class="wp-badge badge-${wp.direction}">${wp.direction === 'L' ? '←' : wp.direction === 'R' ? '→' : '★'}</div>
+      <div class="wp-info">
+        <div>${instr}</div>
+        <div class="wp-dist">${wp.distance}</div>
+      </div>`;
+    list.appendChild(div);
+  });
+}
+
+// ── Haversine distance ─────────────────────────────────────────
+function distMetres(lat1,lng1,lat2,lng2){
+  const R = 6371000;
+  const dLat = (lat2-lat1)*Math.PI/180;
+  const dLng = (lng2-lng1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 +
+            Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// ── Simulation ─────────────────────────────────────────────────
+function setSpeed(s, btn){
+  simSpeed = s;
+  document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function startSim(){
+  if(!pathCoords.length){ log('No route loaded', 'err'); return; }
+  simIndex   = 0;
+  simWpIndex = 0;
+  renderWaypoints();
+  document.getElementById('btn-sim').disabled  = true;
+  document.getElementById('btn-stop').disabled = false;
+  log('Simulation started', 'ok');
+  simStep();
+}
+
+function stopSim(){
+  clearTimeout(simTimer);
+  document.getElementById('btn-sim').disabled  = false;
+  document.getElementById('btn-stop').disabled = true;
+  document.getElementById('sim-info').textContent = 'Simulation stopped';
+  log('Simulation stopped');
+}
+
+async function simStep(){
+  if(simIndex >= pathCoords.length){
+    document.getElementById('sim-info').textContent = '✓ Journey complete';
+    document.getElementById('btn-sim').disabled  = false;
+    document.getElementById('btn-stop').disabled = true;
+    log('Journey complete', 'ok');
+    return;
+  }
+
+  const pos  = pathCoords[simIndex];
+  const pct  = Math.round(simIndex / pathCoords.length * 100);
+  document.getElementById('progress').style.width = pct + '%';
+  document.getElementById('sim-info').textContent =
+    `Step ${simIndex+1}/${pathCoords.length} · ${pct}% complete · ` +
+    `${pos.lat.toFixed(5)}, ${pos.lng.toFixed(5)}`;
+
+  // Check all remaining waypoints for proximity trigger
+  if(simWpIndex < waypoints.length){
+    const wp   = waypoints[simWpIndex];
+    const dist = distMetres(pos.lat, pos.lng, wp.lat, wp.lng);
+
+    if(dist <= TRIGGER_M){
+      // Flash card
+      document.getElementById('wp-card').classList.add('buzz-flash');
+      setTimeout(()=>document.getElementById('wp-card').classList.remove('buzz-flash'), 300);
+
+      // Mark waypoint done visually
+      const el = document.getElementById('wp-' + simWpIndex);
+      if(el) el.classList.add('wp-done');
+
+      // Send to ESP32
+      if(wp.direction === 'L'){
+        log(`← LEFT turn in ${Math.round(dist)}m`, 'ok');
+        await sendMotorCmd(0x01);
+      } else if(wp.direction === 'R'){
+        log(`→ RIGHT turn in ${Math.round(dist)}m`, 'ok');
+        await sendMotorCmd(0x02);
+      } else {
+        log('★ Arrived at destination', 'ok');
+        await sendMotorCmd(0x03);
+      }
+      simWpIndex++;
+    }
+  }
+
+  simIndex++;
+  // ~30km/h simulation = ~8m/s. Each path point ≈ 10-20m apart.
+  // Interval = 1000ms / simSpeed
+  simTimer = setTimeout(simStep, 800 / simSpeed);
+}
+</script>
+</body>
+</html>
