@@ -9,56 +9,58 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:#0a0a0a;color:#f0f0f0;overflow:hidden}
 #map{width:100%;height:52vh;z-index:1}
-#panel{height:48vh;overflow-y:auto;background:#111;border-top:1px solid #222;padding:0 0 20px}
+#panel{height:48vh;overflow-y:auto;background:#111;border-top:1px solid #222;padding:0 0 24px}
 .drag-handle{width:36px;height:4px;background:#333;border-radius:2px;margin:10px auto 14px}
 .section{padding:0 16px;margin-bottom:14px}
-.section-title{font-size:11px;font-weight:500;color:#666;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
-.status-bar{display:flex;gap:8px;padding:0 16px 12px;flex-wrap:wrap}
-.pill{display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:20px;font-size:12px;font-weight:500;border:1px solid #222;background:#1a1a1a}
-.dot{width:7px;height:7px;border-radius:50%}
+.section-title{font-size:11px;font-weight:500;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+.status-bar{display:flex;gap:6px;padding:0 16px 12px;flex-wrap:wrap}
+.pill{display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:20px;font-size:12px;font-weight:500;border:1px solid #1e1e1e;background:#161616;white-space:nowrap}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 .dot-red{background:#ef4444}.dot-green{background:#22c55e}.dot-amber{background:#f59e0b}
 .input-wrap{position:relative;margin-bottom:8px}
-.input-wrap input{width:100%;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:11px 40px 11px 14px;color:#fff;font-size:14px;outline:none;transition:border-color .2s}
-.input-wrap input:focus{border-color:#444}
-.input-icon{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:18px;cursor:pointer;color:#555;transition:color .2s}
-.input-icon:hover{color:#aaa}
-.autocomplete-list{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#1e1e1e;border:1px solid #333;border-radius:10px;z-index:9999;overflow:hidden;max-height:200px;overflow-y:auto}
-.ac-item{padding:10px 14px;font-size:13px;color:#ddd;cursor:pointer;border-bottom:1px solid #2a2a2a;display:flex;align-items:center;gap:8px;transition:background .1s}
+.input-wrap input{width:100%;background:#181818;border:1px solid #2a2a2a;border-radius:10px;padding:11px 40px 11px 14px;color:#fff;font-size:14px;outline:none;transition:border-color .2s}
+.input-wrap input:focus{border-color:#3a3a3a}
+.input-icon{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:17px;cursor:pointer;color:#444}
+.autocomplete-list{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#1a1a1a;border:1px solid #2e2e2e;border-radius:10px;z-index:9999;overflow:hidden;max-height:220px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.ac-item{padding:11px 14px;font-size:13px;color:#ccc;cursor:pointer;border-bottom:1px solid #222;display:flex;align-items:flex-start;gap:8px}
 .ac-item:last-child{border-bottom:none}
-.ac-item:hover{background:#2a2a2a}
-.ac-icon{font-size:14px;color:#666;flex-shrink:0}
-.route-btn{width:100%;padding:13px;border-radius:10px;border:none;font-size:14px;font-weight:500;cursor:pointer;background:#2563eb;color:#fff;transition:opacity .2s,transform .1s}
+.ac-item:active{background:#222}
+.ac-icon{font-size:13px;color:#555;flex-shrink:0;margin-top:1px}
+.ac-text{flex:1;line-height:1.4}
+.route-btn{width:100%;padding:13px;border-radius:10px;border:none;font-size:14px;font-weight:500;cursor:pointer;transition:opacity .15s,transform .1s}
 .route-btn:disabled{opacity:.35;cursor:default}
-.route-btn:active{transform:scale(.98)}
-.route-info-bar{display:flex;gap:8px;margin-bottom:12px}
-.info-chip{flex:1;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:10px 12px;text-align:center}
-.info-chip .val{font-size:16px;font-weight:500;color:#fff}
-.info-chip .lbl{font-size:11px;color:#666;margin-top:2px}
-.wp-item{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #1e1e1e}
+.route-btn:active:not(:disabled){transform:scale(.98)}
+.btn-blue{background:#2563eb;color:#fff}
+.btn-connect{background:#1a1a1a;color:#fff;border:1px solid #2e2e2e}
+.route-info-bar{display:flex;gap:8px;margin-bottom:14px}
+.info-chip{flex:1;background:#161616;border:1px solid #1e1e1e;border-radius:8px;padding:10px 8px;text-align:center}
+.info-chip .val{font-size:15px;font-weight:500;color:#fff}
+.info-chip .lbl{font-size:10px;color:#555;margin-top:2px}
+.wp-item{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #1a1a1a}
 .wp-item:last-child{border-bottom:none}
-.wp-badge{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0}
-.badge-L{background:#1d4ed8}.badge-R{background:#7c3aed}.badge-A{background:#15803d}
-.wp-main{flex:1}
-.wp-instr{font-size:13px;color:#ddd}
-.wp-dist{font-size:11px;color:#555;margin-top:2px}
-.wp-done .wp-instr{color:#444;text-decoration:line-through}
-.wp-done .wp-badge{opacity:.3}
+.wp-badge{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.badge-L{background:#1d4ed8}.badge-R{background:#7c3aed}.badge-U{background:#dc2626}
+.badge-RB{background:#d97706}.badge-HW{background:#0f766e}.badge-A{background:#15803d}.badge-S{background:#374151}
+.wp-done .wp-badge{opacity:.25}
+.wp-done .wp-instr{color:#333;text-decoration:line-through}
+.wp-warn{background:#1a1500}
+.wp-instr{font-size:13px;color:#ccc}
+.wp-dist{font-size:11px;color:#444;margin-top:2px}
 .nav-controls{display:flex;gap:8px}
-.ctrl-btn{flex:1;padding:12px;border-radius:10px;border:none;font-size:13px;font-weight:500;cursor:pointer;transition:opacity .2s}
+.ctrl-btn{flex:1;padding:12px;border-radius:10px;border:none;font-size:13px;font-weight:500;cursor:pointer}
 .ctrl-btn:disabled{opacity:.35;cursor:default}
 .btn-sim{background:#d97706;color:#fff}
 .btn-nav{background:#16a34a;color:#fff}
 .btn-stop{background:#dc2626;color:#fff}
-.speed-row{display:flex;gap:6px;margin-bottom:10px}
-.spd{flex:1;padding:8px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;color:#888;font-size:12px;cursor:pointer;text-align:center}
-.spd.active{background:#1e3a6e;border-color:#2563eb;color:#60a5fa}
+.speed-row{display:flex;gap:6px;margin-bottom:12px}
+.spd{flex:1;padding:8px;background:#161616;border:1px solid #222;border-radius:8px;color:#666;font-size:12px;cursor:pointer;text-align:center}
+.spd.on{background:#1e3a6e;border-color:#2563eb;color:#60a5fa}
 .log-wrap{padding:0 16px}
-.log-toggle{font-size:12px;color:#555;cursor:pointer;margin-bottom:6px}
-.log{font-size:11px;color:#444;font-family:monospace;max-height:70px;overflow-y:auto;display:none}
+.log-toggle{font-size:12px;color:#444;cursor:pointer;margin-bottom:6px;user-select:none}
+.log{font-size:11px;color:#444;font-family:monospace;max-height:80px;overflow-y:auto;display:none}
 .log.open{display:block}
-.log .ok{color:#22c55e}.log .err{color:#ef4444}.log .inf{color:#60a5fa}
-.leaflet-container{background:#0a0a0a}
-.pos-marker-inner{width:14px;height:14px;background:#3b82f6;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(59,130,246,.3)}
+.log .ok{color:#22c55e}.log .err{color:#ef4444}.log .inf{color:#60a5fa}.log .warn{color:#f59e0b}
+.pos-inner{width:14px;height:14px;background:#3b82f6;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(59,130,246,.25)}
 </style>
 </head>
 <body>
@@ -68,63 +70,61 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
 <div id="panel">
   <div class="drag-handle"></div>
 
-  <!-- Status bar -->
+  <!-- Status pills -->
   <div class="status-bar">
-    <div class="pill"><div class="dot dot-red" id="ble-dot"></div><span id="ble-label">Not connected</span></div>
-    <div class="pill"><div class="dot dot-red" id="gps-dot"></div><span id="gps-label">No GPS</span></div>
-    <div class="pill" id="pill-nav" style="display:none"><div class="dot dot-amber" id="nav-dot"></div><span id="nav-label">Idle</span></div>
+    <div class="pill"><div class="dot dot-red" id="ble-dot"></div><span id="ble-lbl">Not connected</span></div>
+    <div class="pill"><div class="dot dot-red" id="gps-dot"></div><span id="gps-lbl">No GPS</span></div>
+    <div class="pill" id="nav-pill" style="display:none"><div class="dot dot-amber" id="nav-dot"></div><span id="nav-lbl">Idle</span></div>
   </div>
 
-  <!-- BLE connect (shown when not connected) -->
+  <!-- BLE connect -->
   <div class="section" id="ble-section">
-    <button class="route-btn" onclick="connectBLE()">Connect to HapticHelmet</button>
+    <button class="route-btn btn-connect" onclick="connectBLE()">🔵 Connect to HapticHelmet</button>
   </div>
 
-  <!-- Route input -->
-  <div class="section" id="route-section">
+  <!-- Route inputs -->
+  <div class="section">
     <div class="section-title">Route</div>
     <div class="input-wrap">
-      <input id="inp-origin" placeholder="Origin" autocomplete="off" oninput="onAC(this,'origin')" onfocus="onAC(this,'origin')"/>
-      <span class="input-icon" title="Use current location" onclick="useMyLocation()">📍</span>
+      <input id="inp-origin" placeholder="Origin" autocomplete="off"
+             oninput="onAC(this,'origin')" onfocus="onAC(this,'origin')"/>
+      <span class="input-icon" onclick="useMyLocation()" title="Use my location">📍</span>
       <div class="autocomplete-list" id="ac-origin" style="display:none"></div>
     </div>
     <div class="input-wrap">
-      <input id="inp-dest" placeholder="Destination" autocomplete="off" oninput="onAC(this,'dest')" onfocus="onAC(this,'dest')"/>
-      <span class="input-icon" style="cursor:default;pointer-events:none">🏁</span>
+      <input id="inp-dest" placeholder="Destination" autocomplete="off"
+             oninput="onAC(this,'dest')" onfocus="onAC(this,'dest')"/>
+      <span class="input-icon" style="pointer-events:none;color:#333">🏁</span>
       <div class="autocomplete-list" id="ac-dest" style="display:none"></div>
     </div>
-    <button class="route-btn" id="btn-route" onclick="getRoute()" style="margin-top:4px">Get route →</button>
+    <button class="route-btn btn-blue" id="btn-route" onclick="getRoute()">Get route →</button>
   </div>
 
-  <!-- Route info + waypoints (hidden until route loads) -->
-  <div class="section" id="route-info-section" style="display:none">
+  <!-- Route info (shown after route loads) -->
+  <div class="section" id="route-section" style="display:none">
     <div class="route-info-bar">
       <div class="info-chip"><div class="val" id="info-dist">—</div><div class="lbl">Distance</div></div>
       <div class="info-chip"><div class="val" id="info-time">—</div><div class="lbl">Est. time</div></div>
       <div class="info-chip"><div class="val" id="info-turns">—</div><div class="lbl">Turns</div></div>
     </div>
 
-    <!-- Simulation speed -->
     <div class="section-title">Simulation speed</div>
     <div class="speed-row">
-      <div class="spd active" id="spd1" onclick="setSpeed(1,this)">×1</div>
-      <div class="spd" id="spd5" onclick="setSpeed(5,this)">×5</div>
-      <div class="spd" id="spd20" onclick="setSpeed(20,this)">×20</div>
+      <div class="spd on"  id="spd1"  onclick="setSpd(1,this)">×1 Real</div>
+      <div class="spd"     id="spd5"  onclick="setSpd(5,this)">×5 Fast</div>
+      <div class="spd"     id="spd20" onclick="setSpd(20,this)">×20 Ultra</div>
     </div>
 
-    <!-- Controls -->
-    <div class="nav-controls" style="margin-bottom:10px">
+    <div class="nav-controls" style="margin-bottom:14px">
       <button class="ctrl-btn btn-sim" id="btn-sim" onclick="startSim()">▶ Simulate</button>
-      <button class="ctrl-btn btn-nav" id="btn-nav" onclick="startRealNav()">📍 Real GPS</button>
+      <button class="ctrl-btn btn-nav" id="btn-nav" onclick="startReal()">📍 Real GPS</button>
       <button class="ctrl-btn btn-stop" id="btn-stop" onclick="stopAll()" disabled>■ Stop</button>
     </div>
 
-    <!-- Waypoints -->
     <div class="section-title">Turn-by-turn</div>
     <div id="wp-list"></div>
   </div>
 
-  <!-- Log -->
   <div class="log-wrap">
     <div class="log-toggle" onclick="toggleLog()">▸ System log</div>
     <div class="log" id="log"></div>
@@ -133,139 +133,189 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
-// ── State ──────────────────────────────────────────────────────
-const SVC  = "12345678-1234-1234-1234-123456789abc";
-const CHAR = "abcdefab-cdef-abcd-efab-cdefabcdefab";
-const TRIG = 100;
+// ─────────────────────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────────────────────
+const SVC_UUID  = "12345678-1234-1234-1234-123456789abc";
+const CHAR_UUID = "abcdefab-cdef-abcd-efab-cdefabcdefab";
+const CONFIRM_DIST = 80;    // metres — fire confirm_cmd
+const REROUTE_DIST = 60;    // metres off-path before rerouting
 
-let map, posMarker, routeLine, wpMarkers = [];
+// Direction icons and labels for UI
+const DIR_INFO = {
+  L:  {icon:'←', label:'Turn left',        color:'#1d4ed8'},
+  R:  {icon:'→', label:'Turn right',       color:'#7c3aed'},
+  U:  {icon:'↩', label:'U-turn',           color:'#dc2626'},
+  RB: {icon:'⟳', label:'Roundabout',       color:'#d97706'},
+  HW: {icon:'⬆', label:'Highway exit',     color:'#0f766e'},
+  A:  {icon:'★', label:'Arrive',           color:'#15803d'},
+  S:  {icon:'↑', label:'Continue straight',color:'#374151'},
+};
+
+// ─────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────
 let bleDev = null, bleCh = null;
-let waypoints = [], path = [], simIdx = 0, wpIdx = 0;
-let simTimer = null, watchId = null, simSpeed = 1;
+let waypoints = [], path = [];
+let simIdx = 0, wpIdx = 0;
+let warnedSet = new Set();   // waypoint indices already warned
+let simTimer = null, watchId = null;
+let simSpeed = 1;
 let myLat = null, myLng = null;
 let acTimer = {};
+let map, posMarker, routeLine;
+let wpMarkers = [];
 
-// ── Map init ───────────────────────────────────────────────────
-map = L.map('map', { zoomControl: true, attributionControl: false })
+// ─────────────────────────────────────────────────────────────
+// Map
+// ─────────────────────────────────────────────────────────────
+map = L.map('map', {zoomControl:false, attributionControl:false})
        .setView([18.5204, 73.8567], 13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  {maxZoom:19}).addTo(map);
+L.control.zoom({position:'bottomright'}).addTo(map);
 
-// Position marker
 const posIcon = L.divIcon({
-  className: '',
-  html: '<div class="pos-marker-inner"></div>',
-  iconSize: [14, 14], iconAnchor: [7, 7]
+  className:'', html:'<div class="pos-inner"></div>',
+  iconSize:[14,14], iconAnchor:[7,7]
 });
 
-// ── Log ────────────────────────────────────────────────────────
+function updatePosMarker(lat,lng){
+  if(!posMarker) posMarker = L.marker([lat,lng],{icon:posIcon,zIndexOffset:1000}).addTo(map);
+  else posMarker.setLatLng([lat,lng]);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Logging
+// ─────────────────────────────────────────────────────────────
 function log(msg, type='inf'){
   const d = document.getElementById('log');
   const el = document.createElement('div');
   el.className = type;
-  el.textContent = new Date().toLocaleTimeString() + '  ' + msg;
+  el.textContent = new Date().toLocaleTimeString()+' '+msg;
   d.prepend(el);
-  if(d.children.length > 40) d.lastChild.remove();
+  if(d.children.length > 50) d.lastChild.remove();
 }
 function toggleLog(){
   const l = document.getElementById('log');
-  const t = l.previousElementSibling;
   l.classList.toggle('open');
-  t.textContent = (l.classList.contains('open') ? '▾' : '▸') + ' System log';
+  l.previousElementSibling.textContent =
+    (l.classList.contains('open')?'▾':'▸')+' System log';
 }
 
-// ── BLE ────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// BLE
+// ─────────────────────────────────────────────────────────────
 async function connectBLE(){
   try {
     log('Scanning for HapticHelmet...');
     bleDev = await navigator.bluetooth.requestDevice({
-      filters:[{name:'HapticHelmet'}], optionalServices:[SVC]
+      filters:[{name:'HapticHelmet'}], optionalServices:[SVC_UUID]
     });
     const srv = await bleDev.gatt.connect();
-    const svc = await srv.getPrimaryService(SVC);
-    bleCh      = await svc.getCharacteristic(CHAR);
-    setBLEState(true);
-    document.getElementById('ble-section').style.display = 'none';
-    log('BLE connected', 'ok');
-    bleDev.addEventListener('gattserverdisconnected', ()=>{
-      setBLEState(false);
-      document.getElementById('ble-section').style.display = 'block';
-      bleCh = null;
-      log('BLE disconnected', 'err');
+    const svc = await srv.getPrimaryService(SVC_UUID);
+    bleCh     = await svc.getCharacteristic(CHAR_UUID);
+    setBLE(true);
+    document.getElementById('ble-section').style.display='none';
+    log('Connected to HapticHelmet','ok');
+    bleDev.addEventListener('gattserverdisconnected',()=>{
+      setBLE(false);
+      bleCh=null;
+      document.getElementById('ble-section').style.display='block';
+      log('BLE disconnected','err');
     });
-  } catch(e){ log('BLE: '+e.message, 'err'); }
-}
-function setBLEState(on){
-  document.getElementById('ble-dot').className  = 'dot '+(on?'dot-green':'dot-red');
-  document.getElementById('ble-label').textContent = on?'HapticHelmet':'Not connected';
-}
-async function sendCmd(cmd){
-  if(!bleCh){ log('BLE not connected', 'err'); return; }
-  try { await bleCh.writeValue(new Uint8Array([cmd])); }
-  catch(e){ log('BLE send error: '+e.message,'err'); }
+  } catch(e){ log('BLE: '+e.message,'err'); }
 }
 
-// ── Current location ───────────────────────────────────────────
+function setBLE(on){
+  document.getElementById('ble-dot').className = 'dot '+(on?'dot-green':'dot-red');
+  document.getElementById('ble-lbl').textContent = on?'HapticHelmet':'Not connected';
+}
+
+async function sendCmd(cmdByte){
+  if(!bleCh){ log('BLE not connected — cmd skipped','err'); return; }
+  try {
+    await bleCh.writeValue(new Uint8Array([cmdByte]));
+    log('BLE cmd: 0x'+cmdByte.toString(16).toUpperCase(),'ok');
+  } catch(e){ log('BLE send error: '+e.message,'err'); }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Location
+// ─────────────────────────────────────────────────────────────
 function useMyLocation(){
   if(!navigator.geolocation){ log('Geolocation not supported','err'); return; }
-  log('Getting location...');
-  navigator.geolocation.getCurrentPosition(pos => {
+  log('Getting your location...');
+  navigator.geolocation.getCurrentPosition(pos=>{
     myLat = pos.coords.latitude;
     myLng = pos.coords.longitude;
-    const val = myLat.toFixed(6)+','+myLng.toFixed(6);
-    document.getElementById('inp-origin').value = val;
-    map.setView([myLat, myLng], 15);
-    updatePosMarker(myLat, myLng);
-    document.getElementById('gps-dot').className  = 'dot dot-green';
-    document.getElementById('gps-label').textContent = 'GPS ready';
-    log('Location: '+val, 'ok');
-  }, err => log('Location error: '+err.message,'err'),
-  { enableHighAccuracy:true, timeout:8000 });
+    document.getElementById('inp-origin').value =
+      myLat.toFixed(6)+','+myLng.toFixed(6);
+    map.setView([myLat,myLng],15);
+    updatePosMarker(myLat,myLng);
+    setGPS(true);
+    log('Location acquired','ok');
+  }, err=>log('Location error: '+err.message,'err'),
+  {enableHighAccuracy:true, timeout:8000});
 }
 
-// ── Autocomplete ───────────────────────────────────────────────
-function onAC(input, field){
+function setGPS(on){
+  document.getElementById('gps-dot').className = 'dot '+(on?'dot-green':'dot-amber');
+  document.getElementById('gps-lbl').textContent = on?'GPS ready':'Acquiring...';
+}
+
+// ─────────────────────────────────────────────────────────────
+// Autocomplete
+// ─────────────────────────────────────────────────────────────
+function onAC(input,field){
   clearTimeout(acTimer[field]);
   const q = input.value.trim();
   if(q.length < 3){ hideAC(field); return; }
-  acTimer[field] = setTimeout(()=>fetchAC(q, field), 380);
+  acTimer[field] = setTimeout(()=>fetchAC(q,field), 380);
 }
-async function fetchAC(q, field){
+
+async function fetchAC(q,field){
   try {
     const r = await fetch('/autocomplete?q='+encodeURIComponent(q));
-    const items = await r.json();
-    renderAC(items, field);
+    renderAC(await r.json(), field);
   } catch(e){}
 }
-function renderAC(items, field){
+
+function renderAC(items,field){
   const el = document.getElementById('ac-'+field);
   if(!items.length){ el.style.display='none'; return; }
-  el.innerHTML = items.map(it=>
-    `<div class="ac-item" onclick="selectAC('${field}',${JSON.stringify(it.label).replace(/'/g,"\\'")},'${it.lat}','${it.lng}')">
-      <span class="ac-icon">📍</span>${it.label}
-    </div>`
-  ).join('');
-  el.style.display = 'block';
+  el.innerHTML = items.map(it=>`
+    <div class="ac-item" onclick="selectAC('${field}',
+      ${JSON.stringify(it.label)},${it.lat},${it.lng})">
+      <span class="ac-icon">📍</span>
+      <span class="ac-text">${it.label}</span>
+    </div>`).join('');
+  el.style.display='block';
 }
-function selectAC(field, label, lat, lng){
-  const inputId = field==='origin'?'inp-origin':'inp-dest';
-  document.getElementById(inputId).value = label;
-  if(field==='origin'){ myLat=parseFloat(lat); myLng=parseFloat(lng); }
+
+function selectAC(field,label,lat,lng){
+  const id = field==='origin'?'inp-origin':'inp-dest';
+  document.getElementById(id).value = label;
+  if(field==='origin'){ myLat=lat; myLng=lng; }
   hideAC(field);
-  map.setView([parseFloat(lat), parseFloat(lng)], 14);
+  map.setView([lat,lng],14);
 }
-function hideAC(field){ document.getElementById('ac-'+field).style.display='none'; }
-document.addEventListener('click', e=>{
+
+function hideAC(f){ document.getElementById('ac-'+f).style.display='none'; }
+document.addEventListener('click',e=>{
   if(!e.target.closest('.input-wrap')){ hideAC('origin'); hideAC('dest'); }
 });
 
-// ── Route ──────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Route
+// ─────────────────────────────────────────────────────────────
 async function getRoute(){
   const origin = document.getElementById('inp-origin').value.trim();
   const dest   = document.getElementById('inp-dest').value.trim();
   if(!origin||!dest){ log('Enter origin and destination','err'); return; }
 
   const btn = document.getElementById('btn-route');
-  btn.disabled = true; btn.textContent = 'Fetching...';
+  btn.disabled=true; btn.textContent='Fetching...';
   log('Fetching route...');
 
   try {
@@ -276,173 +326,206 @@ async function getRoute(){
     const data = await res.json();
     if(data.error){ log('Route error: '+data.error,'err'); return; }
 
-    waypoints = data.waypoints;
-    path      = data.path;
-    simIdx    = 0; wpIdx = 0;
+    waypoints  = data.waypoints;
+    path       = data.path;
+    simIdx=0; wpIdx=0; warnedSet=new Set();
 
-    document.getElementById('info-dist').textContent = data.total_dist;
-    document.getElementById('info-time').textContent = data.total_time;
+    document.getElementById('info-dist').textContent  = data.total_dist;
+    document.getElementById('info-time').textContent  = data.total_time;
     document.getElementById('info-turns').textContent = waypoints.length;
-    document.getElementById('route-info-section').style.display = 'block';
-    document.getElementById('pill-nav').style.display = 'flex';
+    document.getElementById('route-section').style.display = 'block';
+    document.getElementById('nav-pill').style.display = 'flex';
 
     drawRoute(data);
     renderWaypoints();
-    log('Route loaded: '+waypoints.length+' turns, '+path.length+' points', 'ok');
-  } catch(e){ log('Fetch error: '+e.message,'err'); }
-  finally { btn.disabled=false; btn.textContent='Get route →'; }
+    log('Route: '+waypoints.length+' waypoints, '+path.length+' path pts','ok');
+  } catch(e){ log('Fetch: '+e.message,'err'); }
+  finally{ btn.disabled=false; btn.textContent='Get route →'; }
 }
 
-// ── Map drawing ────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Map drawing
+// ─────────────────────────────────────────────────────────────
 function drawRoute(data){
-  // Clear old layers
   if(routeLine) map.removeLayer(routeLine);
   wpMarkers.forEach(m=>map.removeLayer(m));
-  wpMarkers = [];
+  wpMarkers=[];
 
-  // Route polyline
-  const latlngs = path.map(p=>[p.lat, p.lng]);
-  routeLine = L.polyline(latlngs, {color:'#3b82f6', weight:4, opacity:.85}).addTo(map);
-  map.fitBounds(routeLine.getBounds(), {padding:[30,30]});
+  const ll = path.map(p=>[p.lat,p.lng]);
+  routeLine = L.polyline(ll,{color:'#3b82f6',weight:4,opacity:.8}).addTo(map);
+  map.fitBounds(routeLine.getBounds(),{padding:[40,40]});
 
-  // Start marker
-  L.circleMarker([data.start_latlng.lat, data.start_latlng.lng],
-    {radius:7, fillColor:'#22c55e', fillOpacity:1, color:'#fff', weight:2}).addTo(map);
+  // Start dot
+  L.circleMarker([data.start_latlng.lat,data.start_latlng.lng],
+    {radius:7,fillColor:'#22c55e',fillOpacity:1,color:'#fff',weight:2}).addTo(map);
 
   // Waypoint markers
   waypoints.forEach((wp,i)=>{
-    const color = wp.direction==='L'?'#3b82f6':wp.direction==='R'?'#a855f7':'#22c55e';
-    const icon  = wp.direction==='L'?'←':wp.direction==='R'?'→':'★';
-    const m = L.circleMarker([wp.lat, wp.lng],
-      {radius:6, fillColor:color, fillOpacity:.9, color:'#fff', weight:1.5})
-      .bindTooltip(`${icon} ${wp.instruction.replace(/<[^>]+>/g,'')}`,{direction:'top'})
+    const di = DIR_INFO[wp.direction]||DIR_INFO.S;
+    const m  = L.circleMarker([wp.lat,wp.lng],
+      {radius:6,fillColor:di.color,fillOpacity:.9,color:'#fff',weight:1.5})
+      .bindTooltip(di.icon+' '+wp.instruction.replace(/<[^>]+>/g,''),
+        {direction:'top', className:''})
       .addTo(map);
     wpMarkers.push(m);
   });
 }
-function updatePosMarker(lat, lng){
-  if(!posMarker) posMarker = L.marker([lat,lng],{icon:posIcon}).addTo(map);
-  else posMarker.setLatLng([lat,lng]);
-}
 
-// ── Waypoint render ────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Waypoint list
+// ─────────────────────────────────────────────────────────────
 function renderWaypoints(){
-  document.getElementById('wp-list').innerHTML = waypoints.map((wp,i)=>{
-    const done = i < wpIdx;
-    const instr = wp.instruction.replace(/<[^>]+>/g,'');
-    const icon  = wp.direction==='L'?'←':wp.direction==='R'?'→':'★';
-    return `<div class="wp-item${done?' wp-done':''}" id="wp-${i}">
-      <div class="wp-badge badge-${wp.direction}">${icon}</div>
-      <div class="wp-main">
-        <div class="wp-instr">${instr}</div>
-        <div class="wp-dist">${wp.dist||wp.distance}</div>
-      </div>
-    </div>`;
-  }).join('');
+  document.getElementById('wp-list').innerHTML =
+    waypoints.map((wp,i)=>{
+      const done = i < wpIdx;
+      const di   = DIR_INFO[wp.direction]||DIR_INFO.S;
+      const instr= wp.instruction.replace(/<[^>]+>/g,'');
+      return `<div class="wp-item${done?' wp-done':''}" id="wp-${i}">
+        <div class="wp-badge badge-${wp.direction}" style="background:${di.color}">${di.icon}</div>
+        <div class="wp-main">
+          <div class="wp-instr">${instr}</div>
+          <div class="wp-dist">${wp.distance}${wp.alert_dist?
+            ' &nbsp;·&nbsp; warn at '+wp.alert_dist+'m':''}</div>
+        </div>
+      </div>`;
+    }).join('');
 }
 
-// ── Distance ───────────────────────────────────────────────────
-function dist(a1,o1,a2,o2){
-  const R=6371000,dA=(a2-a1)*Math.PI/180,dO=(o2-o1)*Math.PI/180;
-  const a=Math.sin(dA/2)**2+Math.cos(a1*Math.PI/180)*Math.cos(a2*Math.PI/180)*Math.sin(dO/2)**2;
+function markWpDone(i){
+  const el = document.getElementById('wp-'+i);
+  if(el) el.classList.add('wp-done');
+}
+
+function markWpWarning(i){
+  const el = document.getElementById('wp-'+i);
+  if(el) el.classList.add('wp-warn');
+  setTimeout(()=>{ if(el) el.classList.remove('wp-warn'); }, 2000);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Distance
+// ─────────────────────────────────────────────────────────────
+function metres(a1,o1,a2,o2){
+  const R=6371000, dA=(a2-a1)*Math.PI/180, dO=(o2-o1)*Math.PI/180;
+  const a=Math.sin(dA/2)**2+Math.cos(a1*Math.PI/180)*
+          Math.cos(a2*Math.PI/180)*Math.sin(dO/2)**2;
   return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 
-// ── Check waypoints ────────────────────────────────────────────
-async function checkPos(lat, lng){
-  updatePosMarker(lat, lng);
+// ─────────────────────────────────────────────────────────────
+// Position check — runs on every GPS/sim tick
+// ─────────────────────────────────────────────────────────────
+async function checkPos(lat,lng){
+  updatePosMarker(lat,lng);
   if(wpIdx >= waypoints.length) return;
-  const wp = waypoints[wpIdx];
-  const d  = dist(lat, lng, wp.lat, wp.lng);
-  if(d <= TRIG){
-    const el = document.getElementById('wp-'+wpIdx);
-    if(el) el.classList.add('wp-done');
-    if(wp.direction==='L'){
-      log('← LEFT turn in '+Math.round(d)+'m','ok');
-      await sendCmd(0x01);
-    } else if(wp.direction==='R'){
-      log('→ RIGHT turn in '+Math.round(d)+'m','ok');
-      await sendCmd(0x02);
-    } else {
-      log('★ Arrived','ok');
-      await sendCmd(0x03);
-      setNavState('Arrived ★');
-    }
+
+  const wp   = waypoints[wpIdx];
+  const d    = metres(lat,lng,wp.lat,wp.lng);
+
+  // Warning stage — fire warn_cmd once at alert_dist
+  if(!warnedSet.has(wpIdx) && wp.warn_cmd && d <= wp.alert_dist){
+    warnedSet.add(wpIdx);
+    markWpWarning(wpIdx);
+    log(`⚠ Warn: ${DIR_INFO[wp.direction]?.label||'?'} in ${Math.round(d)}m`,'warn');
+    await sendCmd(wp.warn_cmd);
+  }
+
+  // Confirm stage — fire confirm_cmd at CONFIRM_DIST
+  if(d <= CONFIRM_DIST){
+    markWpDone(wpIdx);
+    const di = DIR_INFO[wp.direction]||{label:'?'};
+    log(`✓ ${di.label} at ${Math.round(d)}m`,'ok');
+    await sendCmd(wp.confirm_cmd);
     wpIdx++;
+
+    if(wpIdx >= waypoints.length){
+      setNavState('Arrived ★');
+      stopAll();
+    }
   }
 }
 
-// ── Simulation ─────────────────────────────────────────────────
-function setSpeed(s,el){
+// ─────────────────────────────────────────────────────────────
+// Simulation
+// ─────────────────────────────────────────────────────────────
+function setSpd(s,el){
   simSpeed=s;
-  document.querySelectorAll('.spd').forEach(b=>b.classList.remove('active'));
-  el.classList.add('active');
+  document.querySelectorAll('.spd').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
 }
+
 function startSim(){
-  if(!path.length){ log('No route loaded','err'); return; }
-  simIdx=0; wpIdx=0; renderWaypoints();
-  document.getElementById('btn-sim').disabled  = true;
-  document.getElementById('btn-nav').disabled  = true;
-  document.getElementById('btn-stop').disabled = false;
+  if(!path.length){ log('Get a route first','err'); return; }
+  simIdx=0; wpIdx=0; warnedSet=new Set();
+  renderWaypoints();
+  setBtns(true);
   setNavState('Simulating...');
   log('Simulation started','ok');
   simStep();
 }
+
 async function simStep(){
   if(simIdx >= path.length){
     setNavState('Complete ✓');
-    document.getElementById('btn-sim').disabled  = false;
-    document.getElementById('btn-nav').disabled  = false;
-    document.getElementById('btn-stop').disabled = true;
-    log('Journey complete','ok'); return;
+    setBtns(false);
+    log('Simulation complete','ok');
+    return;
   }
   const p = path[simIdx];
-  await checkPos(p.lat, p.lng);
+  await checkPos(p.lat,p.lng);
   simIdx++;
   simTimer = setTimeout(simStep, 800/simSpeed);
 }
 
-// ── Real GPS navigation ────────────────────────────────────────
-function startRealNav(){
+// ─────────────────────────────────────────────────────────────
+// Real GPS navigation
+// ─────────────────────────────────────────────────────────────
+function startReal(){
   if(!path.length){ log('Get a route first','err'); return; }
-  if(!navigator.geolocation){ log('Geolocation not supported','err'); return; }
-  wpIdx=0; renderWaypoints();
-  document.getElementById('btn-sim').disabled  = true;
-  document.getElementById('btn-nav').disabled  = true;
-  document.getElementById('btn-stop').disabled = false;
+  if(!navigator.geolocation){ log('Geolocation not available','err'); return; }
+  wpIdx=0; warnedSet=new Set();
+  renderWaypoints();
+  setBtns(true);
   setNavState('Navigating...');
-  document.getElementById('gps-dot').className   = 'dot dot-amber';
-  document.getElementById('gps-label').textContent = 'Acquiring...';
+  document.getElementById('gps-dot').className='dot dot-amber';
+  document.getElementById('gps-lbl').textContent='Acquiring GPS...';
   log('Real GPS navigation started','ok');
+
   watchId = navigator.geolocation.watchPosition(pos=>{
     myLat = pos.coords.latitude;
     myLng = pos.coords.longitude;
-    document.getElementById('gps-dot').className   = 'dot dot-green';
-    document.getElementById('gps-label').textContent = 'GPS live';
-    checkPos(myLat, myLng);
-    map.panTo([myLat, myLng]);
+    document.getElementById('gps-dot').className='dot dot-green';
+    document.getElementById('gps-lbl').textContent='GPS live';
+    checkPos(myLat,myLng);
+    map.panTo([myLat,myLng]);
   }, err=>{
     log('GPS error: '+err.message,'err');
-    document.getElementById('gps-dot').className   = 'dot dot-red';
-    document.getElementById('gps-label').textContent = 'GPS error';
+    document.getElementById('gps-dot').className='dot dot-red';
+    document.getElementById('gps-lbl').textContent='GPS error';
   }, {enableHighAccuracy:true, maximumAge:1500, timeout:10000});
 }
 
+// ─────────────────────────────────────────────────────────────
+// Stop
+// ─────────────────────────────────────────────────────────────
 function stopAll(){
   clearTimeout(simTimer);
   if(watchId){ navigator.geolocation.clearWatch(watchId); watchId=null; }
-  document.getElementById('btn-sim').disabled  = false;
-  document.getElementById('btn-nav').disabled  = false;
-  document.getElementById('btn-stop').disabled = true;
-  document.getElementById('gps-dot').className  = 'dot dot-red';
-  document.getElementById('gps-label').textContent = 'No GPS';
-  setNavState('Stopped');
+  setBtns(false);
+  document.getElementById('gps-dot').className='dot dot-red';
+  document.getElementById('gps-lbl').textContent='No GPS';
   log('Stopped');
 }
 
+function setBtns(running){
+  document.getElementById('btn-sim').disabled  = running;
+  document.getElementById('btn-nav').disabled  = running;
+  document.getElementById('btn-stop').disabled = !running;
+}
+
 function setNavState(text){
-  document.getElementById('nav-dot').className   = 'dot dot-amber';
-  document.getElementById('nav-label').textContent = text;
+  document.getElementById('nav-dot').className='dot dot-amber';
+  document.getElementById('nav-lbl').textContent=text;
 }
 </script>
 </body>
