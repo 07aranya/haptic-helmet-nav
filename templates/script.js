@@ -1449,8 +1449,7 @@ async function connectHapticHelmet() {
     setBleStatus('pulse', 'Connecting…');
 
     const device = await navigator.bluetooth.requestDevice({
-      filters: [{ name: 'HapticHelmet' }],
-      optionalServices: [BLE_SERVICE_UUID]
+      filters: [{ services: [BLE_SERVICE_UUID] }]
     });
 
     HapNav.bleDevice = device;
