@@ -1330,7 +1330,10 @@ function startSimulation() {
   announceCurrentStep(true);
 
   const totalPoints = HapNav.simRouteCoords.length;
-  const stepIntervalMs = Math.max(40, Math.min(400, 8000 / totalPoints));
+  
+  // Slow down simulation to prevent flooding the ESP32 Bluetooth command queue.
+  // Targets ~45-60 seconds total, moving at a realistic pace (800ms - 2000ms per step).
+  const stepIntervalMs = Math.max(800, Math.min(2000, 60000 / totalPoints));
 
   HapNav.simInterval = setInterval(() => {
     HapNav.simProgressIndex++;
