@@ -896,7 +896,10 @@ function buildRouteSteps(route) {
       instruction: buildInstructionText(maneuver, step.name),
       location: [maneuver.location[1], maneuver.location[0]],
       distance: step.distance,
-      coords
+      coords,
+      hapticSent: false,
+      voiceNearSent: false,
+      voiceSoonSent: false
     });
   });
 }
@@ -1091,7 +1094,8 @@ function announceCurrentStep(force = false) {
   if (force || HapNav.lastSpokenInstruction !== step.instruction) {
     speak(buildVoiceInstruction(step));
     HapNav.lastSpokenInstruction = step.instruction;
-    sendHapticForStep(step);
+        // REMOVED sendHapticForStep(step) from here! 
+        // We only want it to trigger exactly at the 80m mark, not when the step starts.
   }
 }
 
@@ -1144,13 +1148,20 @@ function updateTurnInstructionFromPosition(lat, lng) {
   document.getElementById('turn-distance').textContent = formatDistance(distToManeuver);
 
   // Voice cues at thresholds
-  if (distToManeuver < 110 && distToManeuver > 80 && HapNav.lastSpokenInstruction !== `${step.instruction}-near`) {
+  if (distToManeuver <= 110 && !step.voiceNearSent) {
+    step.voiceNearSent = true;
     speak(buildVoiceInstruction({ ...step, distance: 100 }));
-    HapNav.lastSpokenInstruction = `${step.instruction}-near`;
-  } else if (distToManeuver < 60 && distToManeuver > 30 && HapNav.lastSpokenInstruction !== `${step.instruction}-soon`) {
-    speak(buildVoiceInstruction({ ...step, distance: 50 }));
-    HapNav.lastSpokenInstruction = `${step.instruction}-soon`;
+  }
+
+  // Exact 80m Haptic trigger
+  if (distToManeuver <= 80 && !step.hapticSent) {
+    step.hapticSent = true;
     sendHapticForStep(step);
+  }
+
+  if (distToManeuver <= 50 && !step.voiceSoonSent) {
+    step.voiceSoonSent = true;
+    speak(buildVoiceInstruction({ ...step, distance: 50 }));
   }
 
   // Advance to next step
@@ -1514,7 +1525,7 @@ function setBleStatus(state, label) {
 
 async function sendHapticCommand(cmd, isTest = false) {
   if (!HapNav.settings.haptic && !isTest) return;
-  if (HapNav.lastHapticCommand === cmd && !isTest) return;
+  // Lockout removed to allow identical consecutive turn commands (e.g. Left -> Left)
 
   HapNav.lastHapticCommand = cmd;
 

@@ -29,7 +29,7 @@ BLECharacteristic* pChar;
 uint8_t  cmdQueue[10];
 int      qHead = 0, qTail = 0;
 unsigned long lastBuzzTime = 0;
-#define  MIN_GAP 3000   // ms between commands
+#define  MIN_GAP 200    // ms gap to allow instant successive buzzing without crashing queue
 
 // ── Motor helpers ─────────────────────────────────────────────
 void buzzL(int intensity, int ms) {
@@ -56,7 +56,6 @@ void buzzBoth(int intensity, int ms) {
 void executeCmd(uint8_t cmd) {
   Serial.print("Executing cmd: 0x");
   Serial.println(cmd, HEX);
-  lastBuzzTime = millis();
 
   switch(cmd) {
 
@@ -179,6 +178,9 @@ void executeCmd(uint8_t cmd) {
       Serial.println(cmd, HEX);
       break;
   }
+
+  // Mark time at the END of the buzz so MIN_GAP applies between vibrations
+  lastBuzzTime = millis();
 }
 
 // ── Queue helpers ─────────────────────────────────────────────
