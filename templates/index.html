@@ -1,990 +1,407 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title> HapNav — Haptic Navigation</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
-<style>
-/* ── Reset & Base ─────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-:root {
-  --bg:       #080B10;
-  --surface:  #0D1117;
-  --surface2: #131921;
-  --border:   rgba(255,255,255,.06);
-  --border2:  rgba(255,255,255,.1);
-  --text:     #E8EDF3;
-  --text2:    #7A8694;
-  --text3:    #3D4650;
-  --accent:   #00D4FF;
-  --accent2:  #0096FF;
-  --green:    #00E5A0;
-  --amber:    #FFB547;
-  --red:      #FF4D6D;
-  --purple:   #B47FFF;
-  --font-display: 'Syne', sans-serif;
-  --font-body:    'DM Sans', sans-serif;
-  --font-mono:    'DM Mono', monospace;
-  --r:  10px;
-  --r2: 16px;
-  --r3: 24px;
-}
-html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); overflow: hidden; }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover" />
+  <title>HapNav V2 — Smart Haptic Navigation</title>
+  <meta name="description" content="Smart Haptic Navigation System — real-time GPS, voice guidance, and haptic helmet integration." />
+  <meta name="theme-color" content="#0A0E17" />
 
-/* ── Layout ───────────────────────────────────────────────── */
-#app { display: flex; flex-direction: column; height: 100vh; }
-#map-wrap { position: relative; flex: 0 0 52vh; }
-#map { width: 100%; height: 100%; }
-#panel { flex: 1; overflow-y: auto; background: var(--surface); border-top: 1px solid var(--border2); scroll-behavior: smooth; }
-#panel::-webkit-scrollbar { width: 0; }
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧭</text></svg>" />
 
-/* ── Map overlay elements ─────────────────────────────────── */
-.map-badge {
-  position: absolute; z-index: 500;
-  background: rgba(8,11,16,.85);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--border2);
-  border-radius: var(--r2);
-  padding: 8px 14px;
-  font-family: var(--font-display);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  color: var(--text2);
-}
-#map-title { top: 16px; left: 16px; color: var(--accent); border-color: rgba(0,212,255,.2); }
-#map-speed { top: 16px; right: 16px; display: none; }
-#map-eta   { bottom: 16px; left: 16px; display: none; font-size: 13px; }
-#map-eta .eta-val { font-size: 20px; color: var(--text); display: block; margin-top: 2px; }
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
 
-/* ── Progress arc on map ──────────────────────────────────── */
-#prog-wrap {
-  position: absolute; bottom: 16px; right: 16px; z-index: 500;
-  width: 56px; height: 56px; display: none;
-}
-#prog-wrap svg { transform: rotate(-90deg); }
-#prog-bg { fill: none; stroke: rgba(255,255,255,.08); stroke-width: 4; }
-#prog-fill { fill: none; stroke: var(--accent); stroke-width: 4;
-  stroke-dasharray: 138; stroke-dashoffset: 138;
-  stroke-linecap: round; transition: stroke-dashoffset .8s ease; }
-#prog-pct {
-  position: absolute; inset: 0; display: flex; align-items: center;
-  justify-content: center; font-family: var(--font-mono);
-  font-size: 11px; font-weight: 500; color: var(--accent);
-}
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-/* ── Panel header ─────────────────────────────────────────── */
-.panel-header {
-  padding: 20px 20px 0;
-  display: flex; align-items: flex-start; justify-content: space-between;
-}
-.brand { font-family: var(--font-display); font-size: 22px; font-weight: 800;
-  letter-spacing: -.02em; color: var(--text); }
-.brand span { color: var(--accent); }
-.brand-sub { font-size: 11px; color: var(--text3); margin-top: 2px;
-  font-family: var(--font-mono); letter-spacing: .06em; text-transform: uppercase; }
-.status-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
-
-/* ── Status pills ─────────────────────────────────────────── */
-.pill {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 4px 10px; border-radius: 20px;
-  font-size: 11px; font-weight: 500; font-family: var(--font-mono);
-  border: 1px solid var(--border); background: var(--surface2);
-  color: var(--text2); letter-spacing: .03em;
-  transition: border-color .3s, color .3s;
-}
-.pill.active { border-color: rgba(0,229,160,.25); color: var(--green); }
-.pill.warn   { border-color: rgba(255,181,71,.25); color: var(--amber); }
-.pill.error  { border-color: rgba(255,77,109,.2);  color: var(--red); }
-.pldot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
-.pldot.pulse { animation: pdot 1.8s ease-in-out infinite; }
-@keyframes pdot { 0%,100%{opacity:1} 50%{opacity:.3} }
-
-/* ── Divider ──────────────────────────────────────────────── */
-.divider { height: 1px; background: var(--border); margin: 16px 20px; }
-
-/* ── Section ──────────────────────────────────────────────── */
-.section { padding: 0 20px; margin-bottom: 16px; }
-.sec-label {
-  font-family: var(--font-mono); font-size: 10px; font-weight: 500;
-  color: var(--text3); text-transform: uppercase; letter-spacing: .1em;
-  margin-bottom: 10px;
-}
-
-/* ── BLE connect button ───────────────────────────────────── */
-#ble-connect-wrap { padding: 0 20px; margin-bottom: 16px; }
-.ble-btn {
-  width: 100%; padding: 14px 20px; border-radius: var(--r2);
-  border: 1px solid rgba(0,212,255,.2);
-  background: rgba(0,212,255,.04);
-  color: var(--accent); font-family: var(--font-display);
-  font-size: 14px; font-weight: 600; letter-spacing: .02em;
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-  gap: 8px; transition: all .2s;
-}
-.ble-btn:hover { background: rgba(0,212,255,.08); border-color: rgba(0,212,255,.35); }
-.ble-btn:active { transform: scale(.98); }
-.ble-icon { font-size: 16px; }
-
-/* ── Input fields ─────────────────────────────────────────── */
-.input-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-.input-wrap { position: relative; }
-.input-line {
-  position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-  border-radius: 3px 0 0 3px;
-  background: var(--border2);
-  transition: background .2s;
-}
-.input-wrap:focus-within .input-line { background: var(--accent); }
-.input-wrap:last-child .input-line   { background: var(--green); }
-
-.field-input {
-  width: 100%; padding: 13px 44px 13px 20px;
-  background: var(--surface2); border: 1px solid var(--border);
-  border-radius: var(--r); color: var(--text);
-  font-family: var(--font-body); font-size: 14px;
-  outline: none; transition: border-color .2s, background .2s;
-  border-left: none; border-radius: 0 var(--r) var(--r) 0;
-}
-.field-input::placeholder { color: var(--text3); }
-.field-input:focus { border-color: var(--border2); background: #161D27; }
-
-.field-action {
-  position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
-  font-size: 16px; cursor: pointer; color: var(--text3);
-  transition: color .2s; background: none; border: none;
-  display: flex; align-items: center; justify-content: center;
-}
-.field-action:hover { color: var(--accent); }
-
-/* Autocomplete */
-.ac-list {
-  position: absolute; top: calc(100% + 6px); left: 0; right: 0;
-  background: #161D27; border: 1px solid var(--border2);
-  border-radius: var(--r2); z-index: 9999; overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0,0,0,.6);
-  max-height: 240px; overflow-y: auto;
-  display: none;
-}
-.ac-list.open { display: block; }
-.ac-item {
-  padding: 11px 16px; font-size: 13px; color: var(--text2);
-  cursor: pointer; display: flex; gap: 10px; align-items: flex-start;
-  border-bottom: 1px solid var(--border); transition: background .1s;
-  font-family: var(--font-body);
-}
-.ac-item:last-child { border-bottom: none; }
-.ac-item:hover { background: rgba(0,212,255,.05); color: var(--text); }
-.ac-dot { width: 6px; height: 6px; border-radius: 50%;
-  background: var(--accent); flex-shrink: 0; margin-top: 5px; }
-
-/* ── Primary action button ────────────────────────────────── */
-.primary-btn {
-  width: 100%; padding: 15px; border-radius: var(--r2);
-  border: none; background: var(--accent2);
-  color: #fff; font-family: var(--font-display);
-  font-size: 15px; font-weight: 700; letter-spacing: .02em;
-  cursor: pointer; transition: all .2s;
-  position: relative; overflow: hidden;
-}
-.primary-btn::after {
-  content: ''; position: absolute; inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,.12), transparent);
-  pointer-events: none;
-}
-.primary-btn:hover { background: var(--accent); transform: translateY(-1px);
-  box-shadow: 0 8px 24px rgba(0,150,255,.35); }
-.primary-btn:active { transform: translateY(0); }
-.primary-btn:disabled { opacity: .4; cursor: default; transform: none; box-shadow: none; }
-
-/* ── Route stats ──────────────────────────────────────────── */
-.stats-row {
-  display: grid; grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px; margin-bottom: 16px;
-}
-.stat-card {
-  background: var(--surface2); border: 1px solid var(--border);
-  border-radius: var(--r2); padding: 14px 12px; text-align: center;
-}
-.stat-val { font-family: var(--font-display); font-size: 18px; font-weight: 700;
-  color: var(--text); letter-spacing: -.01em; }
-.stat-lbl { font-size: 10px; color: var(--text3); margin-top: 4px;
-  font-family: var(--font-mono); text-transform: uppercase; letter-spacing: .08em; }
-
-/* ── Speed selector ───────────────────────────────────────── */
-.speed-row { display: flex; gap: 6px; margin-bottom: 14px; }
-.spd-btn {
-  flex: 1; padding: 10px 6px; background: var(--surface2);
-  border: 1px solid var(--border); border-radius: var(--r);
-  color: var(--text3); font-family: var(--font-mono);
-  font-size: 12px; font-weight: 500; cursor: pointer;
-  text-align: center; transition: all .15s;
-}
-.spd-btn.on {
-  background: rgba(0,212,255,.08); border-color: rgba(0,212,255,.3);
-  color: var(--accent);
-}
-
-/* ── Control buttons ──────────────────────────────────────── */
-.ctrl-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px; }
-.ctrl-btn {
-  padding: 13px 8px; border-radius: var(--r2); border: none;
-  font-family: var(--font-display); font-size: 13px; font-weight: 600;
-  cursor: pointer; transition: all .15s; display: flex;
-  flex-direction: column; align-items: center; gap: 4px;
-}
-.ctrl-btn .ctrl-icon { font-size: 18px; line-height: 1; }
-.ctrl-btn:disabled { opacity: .3; cursor: default; }
-.ctrl-btn:active:not(:disabled) { transform: scale(.96); }
-.btn-sim  { background: rgba(255,181,71,.1); color: var(--amber);
-  border: 1px solid rgba(255,181,71,.2); }
-.btn-sim:hover:not(:disabled) { background: rgba(255,181,71,.18); }
-.btn-nav  { background: rgba(0,229,160,.1); color: var(--green);
-  border: 1px solid rgba(0,229,160,.2); }
-.btn-nav:hover:not(:disabled) { background: rgba(0,229,160,.18); }
-.btn-stop { background: rgba(255,77,109,.1); color: var(--red);
-  border: 1px solid rgba(255,77,109,.2); }
-.btn-stop:hover:not(:disabled) { background: rgba(255,77,109,.18); }
-
-/* ── Waypoint list ────────────────────────────────────────── */
-.wp-list { display: flex; flex-direction: column; gap: 4px; }
-.wp-item {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 14px; background: var(--surface2);
-  border: 1px solid var(--border); border-radius: var(--r);
-  transition: all .2s;
-}
-.wp-item.current {
-  border-color: rgba(0,212,255,.3);
-  background: rgba(0,212,255,.05);
-}
-.wp-item.done {
-  opacity: .35;
-}
-.wp-item.done .wp-instr { text-decoration: line-through; }
-.wp-item.warned { border-color: rgba(255,181,71,.3); background: rgba(255,181,71,.05); }
-
-.wp-icon {
-  width: 34px; height: 34px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 15px; flex-shrink: 0; font-weight: 700;
-}
-.wp-body { flex: 1; min-width: 0; }
-.wp-instr { font-size: 13px; color: var(--text); white-space: nowrap;
-  overflow: hidden; text-overflow: ellipsis; }
-.wp-meta { font-size: 11px; color: var(--text3); margin-top: 3px;
-  font-family: var(--font-mono); display: flex; gap: 10px; }
-.wp-badge-dist { color: var(--text3); }
-.wp-badge-warn { color: var(--amber); }
-
-.wp-check { width: 18px; height: 18px; border-radius: 50%;
-  border: 1.5px solid var(--border2); flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 10px; }
-.wp-item.done .wp-check { background: var(--green); border-color: var(--green); color: #000; }
-
-/* ── Log ──────────────────────────────────────────────────── */
-.log-header {
-  display: flex; align-items: center; justify-content: space-between;
-  cursor: pointer; padding: 4px 0;
-}
-.log-title { font-family: var(--font-mono); font-size: 10px; color: var(--text3);
-  text-transform: uppercase; letter-spacing: .1em; }
-.log-toggle-icon { font-size: 12px; color: var(--text3); transition: transform .2s; }
-.log-toggle-icon.open { transform: rotate(90deg); }
-.log-body {
-  display: none; background: #0A0E14; border: 1px solid var(--border);
-  border-radius: var(--r); padding: 10px 12px; margin-top: 8px;
-  max-height: 90px; overflow-y: auto; font-family: var(--font-mono);
-  font-size: 11px; line-height: 1.7;
-}
-.log-body.open { display: block; }
-.log-body::-webkit-scrollbar { width: 0; }
-.log-ok   { color: var(--green); }
-.log-err  { color: var(--red); }
-.log-warn { color: var(--amber); }
-.log-inf  { color: var(--text3); }
-
-/* ── Map custom styling ───────────────────────────────────── */
-.leaflet-container { background: #0D1117 !important; }
-.leaflet-tile { filter: brightness(.7) saturate(.4) hue-rotate(180deg) invert(1); }
-.leaflet-control-zoom a {
-  background: rgba(13,17,23,.9) !important;
-  border-color: var(--border2) !important;
-  color: var(--text2) !important;
-}
-.pos-ring {
-  width: 16px; height: 16px; background: var(--accent);
-  border: 3px solid var(--bg); border-radius: 50%;
-  box-shadow: 0 0 0 6px rgba(0,212,255,.2), 0 0 20px rgba(0,212,255,.4);
-}
-
-/* ── Haptic pulse animation on waypoint trigger ───────────── */
-@keyframes hapticPulse {
-  0%   { box-shadow: 0 0 0 0 rgba(0,212,255,.5); }
-  100% { box-shadow: 0 0 0 20px rgba(0,212,255,0); }
-}
-.pulsing { animation: hapticPulse .6s ease-out; }
-
-/* ── Notification toast ───────────────────────────────────── */
-#toast {
-  position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-80px);
-  background: rgba(13,17,23,.95); backdrop-filter: blur(20px);
-  border: 1px solid var(--border2); border-radius: var(--r2);
-  padding: 12px 20px; font-family: var(--font-display); font-size: 14px;
-  font-weight: 600; color: var(--text); z-index: 9999;
-  transition: transform .4s cubic-bezier(.34,1.56,.64,1);
-  white-space: nowrap; display: flex; align-items: center; gap: 8px;
-}
-#toast.show { transform: translateX(-50%) translateY(0); }
-
-/* ── Empty state ──────────────────────────────────────────── */
-.empty-state {
-  text-align: center; padding: 20px;
-  font-size: 13px; color: var(--text3);
-  font-family: var(--font-mono);
-}
-
-/* ── Leaflet popup ────────────────────────────────────────── */
-.leaflet-popup-content-wrapper {
-  background: rgba(13,17,23,.95) !important;
-  border: 1px solid var(--border2) !important;
-  border-radius: var(--r) !important;
-  color: var(--text) !important;
-  font-family: var(--font-body) !important;
-  box-shadow: 0 8px 32px rgba(0,0,0,.5) !important;
-}
-.leaflet-popup-tip { background: #0D1117 !important; }
-</style>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-<div id="app">
-  <!-- MAP -->
-  <div id="map-wrap">
-    <div id="map"></div>
-    <div class="map-badge" id="map-title">VIBRA NAV</div>
-    <div class="map-badge" id="map-speed"></div>
-    <div class="map-badge" id="map-eta">
-      <span style="font-size:10px">ETA</span>
-      <span class="eta-val" id="eta-val">—</span>
-    </div>
-    <div id="prog-wrap">
-      <svg width="56" height="56" viewBox="0 0 56 56">
-        <circle class="" id="prog-bg" cx="28" cy="28" r="22"/>
-        <circle id="prog-fill" cx="28" cy="28" r="22"/>
-      </svg>
-      <div id="prog-pct">0%</div>
+  <!-- ===================== LOADING SCREEN ===================== -->
+  <div id="loading-screen" class="loading-screen" role="status" aria-live="polite">
+    <div class="loading-content">
+      <div class="loading-logo">
+        <svg viewBox="0 0 64 64" width="64" height="64" aria-hidden="true">
+          <circle cx="32" cy="32" r="28" fill="none" stroke="var(--primary)" stroke-width="3" stroke-dasharray="20 8"/>
+          <path d="M32 14 L42 32 L32 50 L22 32 Z" fill="var(--primary)" opacity="0.85"/>
+        </svg>
+      </div>
+      <h1 class="loading-title">HapNav<span class="accent">V2</span></h1>
+      <p class="loading-subtitle">Smart Haptic Navigation System</p>
+      <div class="loading-bar"><div class="loading-bar-fill"></div></div>
+      <p class="loading-status" id="loading-status">Initializing modules…</p>
     </div>
   </div>
 
-  <!-- PANEL -->
-  <div id="panel">
+  <!-- ===================== TOAST CONTAINER ===================== -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
-    <!-- Header -->
-    <div class="panel-header">
-      <div>
-        <div class="brand">VIB<span>RA</span></div>
-        <div class="brand-sub">Haptic Navigation System</div>
-      </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-top:4px">
-        <div class="status-pills">
-          <div class="pill" id="pill-ble">
-            <div class="pldot"></div>
-            <span id="lbl-ble">No BLE</span>
-          </div>
-          <div class="pill" id="pill-gps">
-            <div class="pldot"></div>
-            <span id="lbl-gps">No GPS</span>
-          </div>
-        </div>
-        <div class="pill" id="pill-nav" style="display:none">
-          <div class="pldot pulse"></div>
-          <span id="lbl-nav">Idle</span>
+  <!-- ===================== APP SHELL ===================== -->
+  <div id="app" class="app hidden">
+
+    <!-- ============ TOP BAR ============ -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="icon-btn" id="menu-toggle" aria-label="Toggle menu" aria-expanded="false">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+        </button>
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 64 64" width="26" height="26">
+              <circle cx="32" cy="32" r="28" fill="none" stroke="var(--primary)" stroke-width="4"/>
+              <path d="M32 14 L42 32 L32 50 L22 32 Z" fill="var(--primary)"/>
+            </svg>
+          </span>
+          <span class="brand-name">HapNav <span class="accent">V2</span></span>
         </div>
       </div>
-    </div>
 
-    <div class="divider"></div>
+      <div class="topbar-right">
+        <!-- Status pills -->
+        <div class="status-pills" id="status-pills">
+          <div class="pill" id="pill-gps" data-tip="GPS Status">
+            <span class="pill-dot" aria-hidden="true"></span>
+            <span class="pill-label">GPS</span>
+          </div>
+          <div class="pill" id="pill-ble" data-tip="Haptic Helmet">
+            <span class="pill-dot" aria-hidden="true"></span>
+            <span class="pill-label">BLE</span>
+          </div>
+          <div class="pill" id="pill-net" data-tip="Network">
+            <span class="pill-dot" aria-hidden="true"></span>
+            <span class="pill-label">Online</span>
+          </div>
+        </div>
 
-    <!-- BLE Connect -->
-    <div id="ble-wrap">
-      <div style="padding:0 20px;margin-bottom:16px">
-        <button class="ble-btn" onclick="connectBLE()">
-          <span class="ble-icon">◉</span>
-          Connect to HapticHelmet
+        <button class="icon-btn" id="theme-toggle" aria-label="Switch theme" data-tip="Theme">
+          <svg id="theme-icon" viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor"/></svg>
+        </button>
+
+        <button class="icon-btn danger-btn" id="sos-btn" aria-label="Emergency SOS" data-tip="Emergency SOS">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 2 L2 22 L22 22 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><line x1="12" y1="9" x2="12" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17.5" r="1" fill="currentColor"/></svg>
+          <span class="btn-text">SOS</span>
         </button>
       </div>
-    </div>
+    </header>
 
-    <!-- Route inputs -->
-    <div class="section">
-      <div class="sec-label">Route planner</div>
-      <div class="input-group">
-        <div class="input-wrap">
-          <div class="input-line"></div>
-          <input class="field-input" id="inp-origin" placeholder="Origin — where are you?" autocomplete="off"
-            oninput="onAC(this,'origin')" onfocus="onAC(this,'origin')"/>
-          <button class="field-action" onclick="useMyLocation()" title="Use current location">⊕</button>
-          <div class="ac-list" id="ac-origin"></div>
-        </div>
-        <div class="input-wrap">
-          <div class="input-line" style="background:var(--green)"></div>
-          <input class="field-input" id="inp-dest" placeholder="Destination — where to?" autocomplete="off"
-            oninput="onAC(this,'dest')" onfocus="onAC(this,'dest')"/>
-          <button class="field-action" style="pointer-events:none;color:var(--text3)">⊛</button>
-          <div class="ac-list" id="ac-dest"></div>
-        </div>
-      </div>
-      <button class="primary-btn" id="btn-route" onclick="getRoute()">
-        Calculate Route
-      </button>
-    </div>
+    <!-- ============ SIDEBAR ============ -->
+    <aside class="sidebar" id="sidebar" aria-label="Navigation panel">
 
-    <!-- Route results (hidden until loaded) -->
-    <div id="route-results" style="display:none">
+      <!-- Search / Route Planner -->
+      <section class="panel route-panel">
+        <h2 class="panel-title">Plan a route</h2>
 
-      <div class="divider"></div>
-
-      <!-- Stats -->
-      <div class="section">
-        <div class="sec-label">Route overview</div>
-        <div class="stats-row">
-          <div class="stat-card">
-            <div class="stat-val" id="stat-dist">—</div>
-            <div class="stat-lbl">Distance</div>
+        <div class="input-group">
+          <div class="input-icon-row">
+            <span class="input-icon origin-dot" aria-hidden="true"></span>
+            <input type="text" id="origin-input" class="text-input" placeholder="Choose starting point" autocomplete="off" aria-label="Origin" />
+            <button class="ghost-btn" id="use-current-location" data-tip="Use current location">
+              <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
           </div>
-          <div class="stat-card">
-            <div class="stat-val" id="stat-time">—</div>
-            <div class="stat-lbl">Duration</div>
+          <ul class="suggestions" id="origin-suggestions" role="listbox" hidden></ul>
+
+          <button class="swap-btn" id="swap-locations" aria-label="Swap origin and destination" data-tip="Swap">
+            <svg viewBox="0 0 24 24" width="16" height="16"><path d="M7 10l5-5 5 5M12 5v14M17 14l-5 5-5-5M12 19V5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+
+          <div class="input-icon-row">
+            <span class="input-icon dest-dot" aria-hidden="true"></span>
+            <input type="text" id="destination-input" class="text-input" placeholder="Choose destination" autocomplete="off" aria-label="Destination" />
           </div>
-          <div class="stat-card">
-            <div class="stat-val" id="stat-turns">—</div>
-            <div class="stat-lbl">Turns</div>
+          <ul class="suggestions" id="destination-suggestions" role="listbox" hidden></ul>
+        </div>
+
+        <div class="route-actions">
+          <button class="btn btn-primary" id="find-route-btn">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Find route
+          </button>
+          <button class="btn btn-ghost" id="clear-route-btn">Clear</button>
+        </div>
+
+        <!-- Route summary -->
+        <div class="route-summary hidden" id="route-summary">
+          <div class="summary-stat">
+            <span class="summary-value" id="summary-distance">—</span>
+            <span class="summary-label">Distance</span>
+          </div>
+          <div class="summary-stat">
+            <span class="summary-value" id="summary-eta">—</span>
+            <span class="summary-label">ETA</span>
+          </div>
+          <div class="summary-stat">
+            <span class="summary-value" id="summary-duration">—</span>
+            <span class="summary-label">Duration</span>
+          </div>
+          <div class="summary-stat">
+            <span class="summary-value" id="summary-turns">—</span>
+            <span class="summary-label">Turns</span>
           </div>
         </div>
 
-        <!-- Speed -->
-        <div class="sec-label" style="margin-bottom:8px">Sim speed</div>
-        <div class="speed-row">
-          <button class="spd-btn on" onclick="setSpd(1,this)">×1&nbsp; Real</button>
-          <button class="spd-btn"    onclick="setSpd(5,this)">×5&nbsp; Fast</button>
-          <button class="spd-btn"    onclick="setSpd(20,this)">×20 Ultra</button>
-        </div>
-
-        <!-- Controls -->
-        <div class="ctrl-row">
-          <button class="ctrl-btn btn-sim" id="btn-sim" onclick="startSim()">
-            <span class="ctrl-icon">▶</span>Simulate
+        <div class="route-controls hidden" id="route-controls">
+          <button class="btn btn-success" id="start-navigation-btn">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path d="M5 3l14 9-14 9V3z" fill="currentColor"/></svg>
+            Start navigation
           </button>
-          <button class="ctrl-btn btn-nav" id="btn-nav" onclick="startReal()">
-            <span class="ctrl-icon">◎</span>Real GPS
-          </button>
-          <button class="ctrl-btn btn-stop" id="btn-stop" onclick="stopAll()" disabled>
-            <span class="ctrl-icon">■</span>Stop
+          <button class="btn btn-secondary" id="simulate-btn">
+            <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 9l5 3-5 3V9z" fill="currentColor"/></svg>
+            Simulate
           </button>
         </div>
-      </div>
+      </section>
 
-      <div class="divider"></div>
-
-      <!-- Waypoints -->
-      <div class="section">
-        <div class="sec-label">Turn-by-turn</div>
-        <div class="wp-list" id="wp-list">
-          <div class="empty-state">No waypoints yet</div>
+      <!-- Dashboard Widgets -->
+      <section class="panel dashboard-panel">
+        <h2 class="panel-title">Dashboard</h2>
+        <div class="widget-grid">
+          <div class="widget">
+            <span class="widget-icon" aria-hidden="true">🛰️</span>
+            <div class="widget-body">
+              <span class="widget-value" id="widget-gps">Searching…</span>
+              <span class="widget-label">GPS status</span>
+            </div>
+          </div>
+          <div class="widget">
+            <span class="widget-icon" aria-hidden="true">🪖</span>
+            <div class="widget-body">
+              <span class="widget-value" id="widget-ble">Disconnected</span>
+              <span class="widget-label">Haptic helmet</span>
+            </div>
+          </div>
+          <div class="widget">
+            <span class="widget-icon" aria-hidden="true">🧭</span>
+            <div class="widget-body">
+              <span class="widget-value" id="widget-nav">Idle</span>
+              <span class="widget-label">Navigation</span>
+            </div>
+          </div>
+          <div class="widget">
+            <span class="widget-icon" aria-hidden="true">📏</span>
+            <div class="widget-body">
+              <span class="widget-value" id="widget-distance">—</span>
+              <span class="widget-label">Distance left</span>
+            </div>
+          </div>
+          <div class="widget">
+            <span class="widget-icon" aria-hidden="true">⏱️</span>
+            <div class="widget-body">
+              <span class="widget-value" id="widget-eta">—</span>
+              <span class="widget-label">ETA</span>
+            </div>
+          </div>
+          <div class="widget">
+            <span class="widget-icon" aria-hidden="true">⚡</span>
+            <div class="widget-body">
+              <span class="widget-value" id="widget-speed">0 km/h</span>
+              <span class="widget-label">Speed</span>
+            </div>
+          </div>
+          <div class="widget widget-wide">
+            <div class="widget-body widget-progress-body">
+              <div class="widget-progress-head">
+                <span class="widget-label">Route progress</span>
+                <span class="widget-value small" id="widget-progress-pct">0%</span>
+              </div>
+              <div class="progress-track"><div class="progress-fill" id="widget-progress-fill"></div></div>
+            </div>
+          </div>
+          <div class="widget">
+            <span class="widget-icon" aria-hidden="true">📶</span>
+            <div class="widget-body">
+              <span class="widget-value" id="widget-signal">Strong</span>
+              <span class="widget-label">Signal</span>
+            </div>
+          </div>
         </div>
+      </section>
+
+      <!-- Haptic Helmet Panel -->
+      <section class="panel ble-panel">
+        <h2 class="panel-title">Haptic helmet</h2>
+        <p class="panel-desc">Connect the HapticHelmet device to receive turn-by-turn vibration cues (ESP32 + Web Bluetooth).</p>
+        <div class="ble-row">
+          <button class="btn btn-secondary" id="ble-connect-btn">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path d="M6.5 6.5l11 11L12 23V12L6.5 17.5M12 1v11l5.5-5.5M6.5 6.5L17.5 17.5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Connect helmet
+          </button>
+          <button class="btn btn-ghost" id="ble-disconnect-btn" disabled>Disconnect</button>
+        </div>
+        <div class="ble-test-row" id="ble-test-row" hidden>
+          <span class="panel-desc" style="margin:0">Test motors:</span>
+          <button class="chip" data-cmd="0x01">Left</button>
+          <button class="chip" data-cmd="0x02">Right</button>
+          <button class="chip" data-cmd="0x03">Straight</button>
+          <button class="chip" data-cmd="0x04">Arrived</button>
+        </div>
+      </section>
+
+      <!-- Nearby Services -->
+      <section class="panel nearby-panel">
+        <h2 class="panel-title">Nearby services</h2>
+        <div class="nearby-filters" id="nearby-filters">
+          <button class="chip chip-toggle" data-type="hospital" aria-pressed="false">🏥 Hospitals</button>
+          <button class="chip chip-toggle" data-type="police" aria-pressed="false">🚓 Police</button>
+          <button class="chip chip-toggle" data-type="fuel" aria-pressed="false">⛽ Petrol</button>
+          <button class="chip chip-toggle" data-type="charging" aria-pressed="false">🔌 Charging</button>
+        </div>
+        <ul class="nearby-list" id="nearby-list">
+          <li class="nearby-empty">Select a category to find nearby places around your location.</li>
+        </ul>
+      </section>
+
+
+
+      <!-- Settings -->
+      <section class="panel settings-panel">
+        <h2 class="panel-title">Preferences</h2>
+        <div class="setting-row">
+          <span>Voice guidance</span>
+          <button class="toggle" id="voice-toggle" role="switch" aria-checked="true">
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
+        <div class="setting-row">
+          <span>Haptic feedback</span>
+          <button class="toggle" id="haptic-toggle" role="switch" aria-checked="true">
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
+        <div class="setting-row">
+          <span>Units</span>
+          <div class="segmented" id="units-segmented">
+            <button class="segment active" data-unit="metric">km</button>
+            <button class="segment" data-unit="imperial">mi</button>
+          </div>
+        </div>
+        <button class="btn btn-ghost" id="share-route-btn">Share route</button>
+        <p class="kbd-hint">
+          <strong>Keyboard:</strong> <kbd>Space</kbd> mute · <kbd>S</kbd> start nav · <kbd>Esc</kbd> stop · <kbd>?</kbd> shortcuts
+        </p>
+      </section>
+    </aside>
+
+    <!-- ============ MAP AREA ============ -->
+    <main class="map-area">
+      <div id="map" class="map" role="application" aria-label="Navigation map"></div>
+
+      <!-- Turn instruction card -->
+      <div class="turn-card hidden" id="turn-card">
+        <div class="turn-icon" id="turn-icon" aria-hidden="true">↑</div>
+        <div class="turn-info">
+          <span class="turn-instruction" id="turn-instruction">Head north</span>
+          <span class="turn-distance" id="turn-distance">—</span>
+        </div>
+        <button class="icon-btn" id="mute-btn" aria-label="Mute voice" data-tip="Mute voice">
+          <svg id="mute-icon" viewBox="0 0 24 24" width="20" height="20"><path d="M11 5L6 9H2v6h4l5 4V5z" fill="currentColor"/><path d="M16 8a5 5 0 010 8M19 5a8 8 0 010 14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+        </button>
       </div>
 
-    </div><!-- /route-results -->
-
-    <div class="divider"></div>
-
-    <!-- Log -->
-    <div class="section" style="margin-bottom:24px">
-      <div class="log-header" onclick="toggleLog()">
-        <div class="log-title">System log</div>
-        <div class="log-toggle-icon" id="log-icon">▶</div>
+      <!-- Off-route banner -->
+      <div class="banner banner-warning hidden" id="offroute-banner">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 2L2 21h20L12 2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><line x1="12" y1="9" x2="12" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17.5" r="1" fill="currentColor"/></svg>
+        <span>You're off route — recalculating…</span>
       </div>
-      <div class="log-body" id="log-body"></div>
+
+      <!-- Live nav bottom bar -->
+      <div class="nav-bottombar hidden" id="nav-bottombar">
+        <div class="nav-bottombar-stat">
+          <span class="nbb-value" id="nbb-distance">—</span>
+          <span class="nbb-label">Remaining</span>
+        </div>
+        <div class="nav-bottombar-stat">
+          <span class="nbb-value" id="nbb-eta">—</span>
+          <span class="nbb-label">ETA</span>
+        </div>
+        <div class="nav-bottombar-stat">
+          <span class="nbb-value" id="nbb-speed">0 km/h</span>
+          <span class="nbb-label">Speed</span>
+        </div>
+        <button class="btn btn-danger nbb-stop" id="stop-navigation-btn">End</button>
+      </div>
+
+      <!-- Simulation progress bar -->
+      <div class="sim-bar hidden" id="sim-bar">
+        <span>Simulation</span>
+        <div class="progress-track"><div class="progress-fill" id="sim-progress-fill"></div></div>
+        <span id="sim-progress-text">0%</span>
+        <button class="icon-btn" id="sim-stop-btn" aria-label="Stop simulation">
+          <svg viewBox="0 0 24 24" width="18" height="18"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></svg>
+        </button>
+      </div>
+
+      <!-- Floating action buttons -->
+      <div class="fab-stack">
+        <button class="fab" id="locate-fab" aria-label="Center on my location" data-tip="My location">
+          <svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+        <button class="fab" id="zoom-in-fab" aria-label="Zoom in">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+        </button>
+        <button class="fab" id="zoom-out-fab" aria-label="Zoom out">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+
+      <!-- Offline indicator -->
+      <div class="offline-banner hidden" id="offline-banner">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M1 1l22 22M16.72 11.06A10.94 10.94 0 0119 12.55M5 12.55a10.94 10.94 0 015.17-2.39M10.71 5.05A16 16 0 0122.58 9M1.42 9a15.91 15.91 0 014.7-2.88M8.53 16.11a6 6 0 016.95 0M12 20h.01" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        You're offline — showing cached map data
+      </div>
+    </main>
+  </div>
+
+  <!-- ===================== SOS MODAL ===================== -->
+  <div class="modal-backdrop hidden" id="sos-modal-backdrop">
+    <div class="modal sos-modal" role="dialog" aria-modal="true" aria-labelledby="sos-title">
+      <div class="sos-modal-header">
+        <h2 id="sos-title">🚨 Emergency SOS</h2>
+        <button class="icon-btn" id="sos-close-btn" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <p>This will fetch your live location and prepare an emergency message you can send to your contacts or emergency services.</p>
+      <div class="sos-location" id="sos-location">Fetching location…</div>
+      <textarea class="sos-message" id="sos-message" readonly rows="4"></textarea>
+      <div class="sos-actions">
+        <button class="btn btn-primary" id="sos-copy-btn">Copy message</button>
+        <a class="btn btn-secondary" id="sos-sms-btn" href="#">Send SMS</a>
+        <button class="btn btn-danger" id="sos-call-btn">Call 112</button>
+      </div>
+      <p class="sos-note">Ready for Twilio / EmailJS integration to auto-notify saved emergency contacts.</p>
     </div>
+  </div>
 
-  </div><!-- /panel -->
-</div>
-
-<!-- Toast -->
-<div id="toast"></div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script>
-// ─────────────────────────────────────────────────────────────
-// Config
-// ─────────────────────────────────────────────────────────────
-const SVC_UUID  = "12345678-1234-1234-1234-123456789abc";
-const CHAR_UUID = "abcdefab-cdef-abcd-efab-cdefabcdefab";
-const CONFIRM_DIST = 80;
-
-const DIR = {
-  L:  { icon:'←', label:'Turn left',        color:'#0096FF', bg:'rgba(0,150,255,.15)'  },
-  R:  { icon:'→', label:'Turn right',       color:'#B47FFF', bg:'rgba(180,127,255,.15)'},
-  U:  { icon:'↩', label:'U-turn',           color:'#FF4D6D', bg:'rgba(255,77,109,.15)' },
-  RB: { icon:'⟳', label:'Roundabout',       color:'#FFB547', bg:'rgba(255,181,71,.15)' },
-  HW: { icon:'↗', label:'Highway exit',     color:'#00D4FF', bg:'rgba(0,212,255,.15)'  },
-  A:  { icon:'★', label:'Arrive',           color:'#00E5A0', bg:'rgba(0,229,160,.15)'  },
-  S:  { icon:'↑', label:'Straight',         color:'#7A8694', bg:'rgba(122,134,148,.12)'},
-};
-
-// ─────────────────────────────────────────────────────────────
-// State
-// ─────────────────────────────────────────────────────────────
-let bleDev=null, bleCh=null;
-let waypoints=[], path=[];
-let simIdx=0, wpIdx=0, warnedSet=new Set();
-let simTimer=null, watchId=null, simSpeed=1;
-let myLat=null, myLng=null;
-let acTimer={};
-let map, posMarker, routeLine, wpMarkers=[];
-
-// ─────────────────────────────────────────────────────────────
-// Map init
-// ─────────────────────────────────────────────────────────────
-map = L.map('map', { zoomControl:false, attributionControl:false })
-       .setView([18.5204, 73.8567], 13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-  { maxZoom:19 }).addTo(map);
-L.control.zoom({ position:'bottomright' }).addTo(map);
-
-const posIcon = L.divIcon({
-  className:'', html:'<div class="pos-ring"></div>',
-  iconSize:[16,16], iconAnchor:[8,8]
-});
-
-function updatePos(lat,lng){
-  if(!posMarker) posMarker = L.marker([lat,lng],{icon:posIcon,zIndexOffset:1000}).addTo(map);
-  else posMarker.setLatLng([lat,lng]);
-}
-
-// ─────────────────────────────────────────────────────────────
-// Toast
-// ─────────────────────────────────────────────────────────────
-let toastTimer;
-function showToast(msg, icon=''){
-  const t = document.getElementById('toast');
-  t.innerHTML = (icon?`<span>${icon}</span> `:'') + msg;
-  t.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(()=>t.classList.remove('show'), 3000);
-}
-
-// ─────────────────────────────────────────────────────────────
-// Log
-// ─────────────────────────────────────────────────────────────
-function log(msg, type='inf'){
-  const d = document.getElementById('log-body');
-  const el = document.createElement('div');
-  el.className = 'log-'+type;
-  el.textContent = new Date().toLocaleTimeString('en-US',{hour12:false})+' › '+msg;
-  d.prepend(el);
-  if(d.children.length > 60) d.lastChild.remove();
-}
-
-function toggleLog(){
-  const b = document.getElementById('log-body');
-  const i = document.getElementById('log-icon');
-  b.classList.toggle('open');
-  i.classList.toggle('open');
-  i.textContent = b.classList.contains('open') ? '▼' : '▶';
-}
-
-// ─────────────────────────────────────────────────────────────
-// BLE
-// ─────────────────────────────────────────────────────────────
-async function connectBLE(){
-  try {
-    log('Scanning for HapticHelmet...');
-    bleDev = await navigator.bluetooth.requestDevice({
-      filters:[{name:'HapticHelmet'}], optionalServices:[SVC_UUID]
-    });
-    const srv = await bleDev.gatt.connect();
-    const svc = await srv.getPrimaryService(SVC_UUID);
-    bleCh     = await svc.getCharacteristic(CHAR_UUID);
-
-    setBLEUI(true);
-    document.getElementById('ble-wrap').style.display = 'none';
-    showToast('HapticHelmet connected', '◉');
-    log('BLE connected to HapticHelmet', 'ok');
-
-    bleDev.addEventListener('gattserverdisconnected', ()=>{
-      setBLEUI(false);
-      bleCh = null;
-      document.getElementById('ble-wrap').style.display = 'block';
-      showToast('HapticHelmet disconnected', '○');
-      log('BLE disconnected', 'err');
-    });
-  } catch(e){ log('BLE error: '+e.message, 'err'); }
-}
-
-function setBLEUI(on){
-  const p = document.getElementById('pill-ble');
-  const l = document.getElementById('lbl-ble');
-  p.className = 'pill' + (on?' active':'');
-  p.querySelector('.pldot').className = 'pldot' + (on?' pulse':'');
-  l.textContent = on ? 'HapticHelmet' : 'No BLE';
-}
-
-async function sendCmd(cmd){
-  if(!bleCh){ log('BLE not connected — cmd skipped', 'err'); return; }
-  try {
-    await bleCh.writeValue(new Uint8Array([cmd]));
-    log('TX 0x'+cmd.toString(16).toUpperCase().padStart(2,'0'), 'ok');
-  } catch(e){ log('BLE TX error: '+e.message, 'err'); }
-}
-
-// ─────────────────────────────────────────────────────────────
-// Location
-// ─────────────────────────────────────────────────────────────
-function useMyLocation(){
-  if(!navigator.geolocation){ log('Geolocation not supported','err'); return; }
-  log('Requesting location...');
-  navigator.geolocation.getCurrentPosition(pos=>{
-    myLat = pos.coords.latitude;
-    myLng = pos.coords.longitude;
-    document.getElementById('inp-origin').value =
-      myLat.toFixed(6)+','+myLng.toFixed(6);
-    map.setView([myLat,myLng], 15);
-    updatePos(myLat, myLng);
-    setGPSUI(true);
-    showToast('Location acquired', '◎');
-    log('GPS: '+myLat.toFixed(5)+', '+myLng.toFixed(5), 'ok');
-  }, err=>{ log('Location error: '+err.message, 'err'); showToast('GPS error', '✕'); },
-  { enableHighAccuracy:true, timeout:8000 });
-}
-
-function setGPSUI(on, live=false){
-  const p = document.getElementById('pill-gps');
-  const l = document.getElementById('lbl-gps');
-  if(live){
-    p.className = 'pill active';
-    p.querySelector('.pldot').className = 'pldot pulse';
-    l.textContent = 'GPS live';
-  } else if(on){
-    p.className = 'pill warn';
-    p.querySelector('.pldot').className = 'pldot';
-    l.textContent = 'GPS ready';
-  } else {
-    p.className = 'pill error';
-    p.querySelector('.pldot').className = 'pldot';
-    l.textContent = 'No GPS';
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
-// Autocomplete
-// ─────────────────────────────────────────────────────────────
-function onAC(input, field){
-  clearTimeout(acTimer[field]);
-  const q = input.value.trim();
-  const el = document.getElementById('ac-'+field);
-  if(q.length < 3){ el.classList.remove('open'); return; }
-  acTimer[field] = setTimeout(()=>fetchAC(q,field), 380);
-}
-
-async function fetchAC(q, field){
-  try {
-    const r = await fetch('/autocomplete?q='+encodeURIComponent(q));
-    renderAC(await r.json(), field);
-  } catch(e){}
-}
-
-function renderAC(items, field){
-  const el = document.getElementById('ac-'+field);
-  if(!items.length){ el.classList.remove('open'); return; }
-  el.innerHTML = items.map(it=>`
-    <div class="ac-item" onclick="selectAC('${field}',${JSON.stringify(it.label)},${it.lat},${it.lng})">
-      <div class="ac-dot"></div>
-      <span>${it.label}</span>
-    </div>`).join('');
-  el.classList.add('open');
-}
-
-function selectAC(field, label, lat, lng){
-  document.getElementById(field==='origin'?'inp-origin':'inp-dest').value = label;
-  if(field==='origin'){ myLat=lat; myLng=lng; }
-  document.getElementById('ac-'+field).classList.remove('open');
-  map.setView([lat,lng], 14);
-}
-
-document.addEventListener('click', e=>{
-  if(!e.target.closest('.input-wrap')){
-    document.querySelectorAll('.ac-list').forEach(l=>l.classList.remove('open'));
-  }
-});
-
-// ─────────────────────────────────────────────────────────────
-// Route
-// ─────────────────────────────────────────────────────────────
-async function getRoute(){
-  const origin = document.getElementById('inp-origin').value.trim();
-  const dest   = document.getElementById('inp-dest').value.trim();
-  if(!origin||!dest){ showToast('Enter origin and destination','✕'); return; }
-
-  const btn = document.getElementById('btn-route');
-  btn.disabled = true; btn.textContent = 'Calculating...';
-  log('Fetching route...');
-
-  try {
-    const res  = await fetch('/route', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({origin, destination:dest})
-    });
-    const data = await res.json();
-    if(data.error){ showToast('Route error: '+data.error,'✕'); log('Route error: '+data.error,'err'); return; }
-
-    waypoints  = data.waypoints;
-    path       = data.path;
-    simIdx=0; wpIdx=0; warnedSet=new Set();
-
-    document.getElementById('stat-dist').textContent  = data.total_dist;
-    document.getElementById('stat-time').textContent  = data.total_time;
-    document.getElementById('stat-turns').textContent = waypoints.length;
-    document.getElementById('eta-val').textContent    = data.total_time;
-    document.getElementById('route-results').style.display = 'block';
-    document.getElementById('pill-nav').style.display = 'flex';
-
-    drawRoute(data);
-    renderWaypoints();
-    showToast(data.total_dist+' · '+data.total_time, '◈');
-    log('Route: '+waypoints.length+' turns · '+path.length+' path pts', 'ok');
-  } catch(e){ log('Fetch error: '+e.message,'err'); showToast('Network error','✕'); }
-  finally{ btn.disabled=false; btn.textContent='Calculate Route'; }
-}
-
-// ─────────────────────────────────────────────────────────────
-// Map
-// ─────────────────────────────────────────────────────────────
-function drawRoute(data){
-  if(routeLine) map.removeLayer(routeLine);
-  wpMarkers.forEach(m=>map.removeLayer(m));
-  wpMarkers=[];
-
-  // Route line
-  routeLine = L.polyline(path.map(p=>[p.lat,p.lng]),
-    {color:'#0096FF', weight:4, opacity:.9}).addTo(map);
-  map.fitBounds(routeLine.getBounds(), {padding:[50,50]});
-
-  // Start marker
-  L.circleMarker([data.start_latlng.lat, data.start_latlng.lng],
-    {radius:8, fillColor:'#00E5A0', fillOpacity:1, color:'#080B10', weight:2.5}).addTo(map);
-
-  // Waypoint markers
-  waypoints.forEach((wp,i)=>{
-    const d = DIR[wp.direction]||DIR.S;
-    const m = L.circleMarker([wp.lat,wp.lng], {
-      radius:6, fillColor:d.color, fillOpacity:.9,
-      color:'#080B10', weight:2
-    }).bindTooltip(`${d.icon} ${wp.instruction.replace(/<[^>]+>/g,'')}`,
-      {direction:'top'}).addTo(map);
-    wpMarkers.push(m);
-  });
-}
-
-// ─────────────────────────────────────────────────────────────
-// Waypoint list
-// ─────────────────────────────────────────────────────────────
-function renderWaypoints(){
-  const container = document.getElementById('wp-list');
-  if(!waypoints.length){
-    container.innerHTML = '<div class="empty-state">No turns on this route</div>';
-    return;
-  }
-  container.innerHTML = waypoints.map((wp,i)=>{
-    const done = i < wpIdx;
-    const d    = DIR[wp.direction]||DIR.S;
-    const instr= wp.instruction.replace(/<[^>]+>/g,'');
-    return `<div class="wp-item${done?' done':''}" id="wp-${i}">
-      <div class="wp-icon" style="background:${d.bg};color:${d.color}">${d.icon}</div>
-      <div class="wp-body">
-        <div class="wp-instr">${instr}</div>
-        <div class="wp-meta">
-          <span class="wp-badge-dist">${wp.distance||''}</span>
-          ${wp.alert_dist?`<span class="wp-badge-warn">warn @${wp.alert_dist}m</span>`:''}
-        </div>
+  <!-- ===================== SHORTCUTS MODAL ===================== -->
+  <div class="modal-backdrop hidden" id="shortcuts-modal-backdrop">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
+      <div class="sos-modal-header">
+        <h2 id="shortcuts-title">Keyboard shortcuts</h2>
+        <button class="icon-btn" id="shortcuts-close-btn" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
       </div>
-      <div class="wp-check">${done?'✓':''}</div>
-    </div>`;
-  }).join('');
-}
+      <ul class="shortcuts-list">
+        <li><kbd>Space</kbd><span>Mute / unmute voice</span></li>
+        <li><kbd>S</kbd><span>Start navigation</span></li>
+        <li><kbd>Esc</kbd><span>Stop navigation / close dialogs</span></li>
+        <li><kbd>L</kbd><span>Center on current location</span></li>
+        <li><kbd>+</kbd> / <kbd>-</kbd><span>Zoom in / out</span></li>
+        <li><kbd>?</kbd><span>Toggle this panel</span></li>
+      </ul>
+    </div>
+  </div>
 
-function markDone(i){
-  const el = document.getElementById('wp-'+i);
-  if(el){
-    el.classList.remove('current','warned');
-    el.classList.add('done');
-    el.querySelector('.wp-check').textContent = '✓';
-  }
-  if(i+1 < waypoints.length){
-    const next = document.getElementById('wp-'+(i+1));
-    if(next){
-      next.classList.add('current');
-      next.scrollIntoView({behavior:'smooth', block:'nearest'});
-    }
-  }
-}
-
-function markWarned(i){
-  const el = document.getElementById('wp-'+i);
-  if(el){ el.classList.add('warned','current'); el.classList.add('pulsing');
-    setTimeout(()=>el.classList.remove('pulsing'),600); }
-}
-
-// ─────────────────────────────────────────────────────────────
-// Distance
-// ─────────────────────────────────────────────────────────────
-function metres(a1,o1,a2,o2){
-  const R=6371000, dA=(a2-a1)*Math.PI/180, dO=(o2-o1)*Math.PI/180;
-  const a=Math.sin(dA/2)**2+Math.cos(a1*Math.PI/180)*
-          Math.cos(a2*Math.PI/180)*Math.sin(dO/2)**2;
-  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-}
-
-// ─────────────────────────────────────────────────────────────
-// Progress arc
-// ─────────────────────────────────────────────────────────────
-function updateProgress(pct){
-  const circ = 138;
-  document.getElementById('prog-fill').style.strokeDashoffset =
-    circ - (circ * pct / 100);
-  document.getElementById('prog-pct').textContent = Math.round(pct)+'%';
-}
-
-// ─────────────────────────────────────────────────────────────
-// Position check
-// ─────────────────────────────────────────────────────────────
-async function checkPos(lat, lng){
-  updatePos(lat, lng);
-  const pct = path.length ? (simIdx/path.length)*100 : 0;
-  updateProgress(pct);
-
-  if(wpIdx >= waypoints.length) return;
-  const wp = waypoints[wpIdx];
-  const d  = metres(lat,lng,wp.lat,wp.lng);
-  const di = DIR[wp.direction]||DIR.S;
-
-  // Warning
-  if(!warnedSet.has(wpIdx) && wp.warn_cmd && d <= wp.alert_dist){
-    warnedSet.add(wpIdx);
-    markWarned(wpIdx);
-    showToast(di.label+' in '+Math.round(d)+'m', di.icon);
-    log('WARN: '+di.label+' in '+Math.round(d)+'m','warn');
-    await sendCmd(wp.warn_cmd);
-  }
-
-  // Confirm
-  if(d <= CONFIRM_DIST){
-    markDone(wpIdx);
-    log('TURN: '+di.label+' confirmed','ok');
-    await sendCmd(wp.confirm_cmd);
-    wpIdx++;
-
-    if(wpIdx >= waypoints.length){
-      showToast('You have arrived!', '★');
-      setNavUI('Arrived ★');
-      stopAll();
-    }
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
-// Simulation
-// ─────────────────────────────────────────────────────────────
-function setSpd(s, el){
-  simSpeed = s;
-  document.querySelectorAll('.spd-btn').forEach(b=>b.classList.remove('on'));
-  el.classList.add('on');
-}
-
-function startSim(){
-  if(!path.length){ showToast('Get a route first','✕'); return; }
-  simIdx=0; wpIdx=0; warnedSet=new Set();
-  renderWaypoints();
-  setBtns(true);
-  setNavUI('Simulating...');
-  document.getElementById('map-eta').style.display  = 'block';
-  document.getElementById('prog-wrap').style.display = 'block';
-  log('Simulation started at ×'+simSpeed,'ok');
-  showToast('Simulation started','▶');
-  simStep();
-}
-
-async function simStep(){
-  if(simIdx >= path.length){
-    setBtns(false);
-    setNavUI('Complete ✓');
-    document.getElementById('prog-wrap').style.display = 'none';
-    log('Simulation complete','ok');
-    return;
-  }
-  const p = path[simIdx];
-  await checkPos(p.lat, p.lng);
-  simIdx++;
-  simTimer = setTimeout(simStep, 800/simSpeed);
-}
-
-// ─────────────────────────────────────────────────────────────
-// Real GPS
-// ─────────────────────────────────────────────────────────────
-function startReal(){
-  if(!path.length){ showToast('Get a route first','✕'); return; }
-  if(!navigator.geolocation){ showToast('Geolocation not available','✕'); return; }
-  wpIdx=0; warnedSet=new Set();
-  renderWaypoints();
-  setBtns(true);
-  setNavUI('Navigating...');
-  setGPSUI(false);
-  document.getElementById('map-eta').style.display   = 'block';
-  document.getElementById('prog-wrap').style.display = 'block';
-  showToast('Real GPS navigation started','◎');
-  log('Real GPS navigation started','ok');
-
-  watchId = navigator.geolocation.watchPosition(pos=>{
-    myLat = pos.coords.latitude;
-    myLng = pos.coords.longitude;
-    setGPSUI(true, true);
-    checkPos(myLat, myLng);
-    map.panTo([myLat, myLng]);
-  }, err=>{
-    log('GPS error: '+err.message,'err');
-    setGPSUI(false);
-  }, { enableHighAccuracy:true, maximumAge:1500, timeout:10000 });
-}
-
-// ─────────────────────────────────────────────────────────────
-// Stop / UI helpers
-// ─────────────────────────────────────────────────────────────
-function stopAll(){
-  clearTimeout(simTimer);
-  if(watchId){ navigator.geolocation.clearWatch(watchId); watchId=null; }
-  setBtns(false);
-  setNavUI('Stopped');
-  document.getElementById('map-eta').style.display   = 'none';
-  document.getElementById('prog-wrap').style.display = 'none';
-  log('Stopped');
-}
-
-function setBtns(running){
-  document.getElementById('btn-sim').disabled  = running;
-  document.getElementById('btn-nav').disabled  = running;
-  document.getElementById('btn-stop').disabled = !running;
-}
-
-function setNavUI(text){
-  document.getElementById('lbl-nav').textContent = text;
-}
-</script>
+  <!-- Leaflet -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <script src="script.js"></script>
 </body>
 </html>
