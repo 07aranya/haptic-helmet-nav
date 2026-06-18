@@ -3,7 +3,8 @@ import requests, os
 from dotenv import load_dotenv
 load_dotenv()
 
-app = Flask(__name__)
+# Configure Flask to serve static files (CSS, JS, SW) directly from the 'templates' folder at the root URL
+app = Flask(__name__, static_folder='templates', static_url_path='')
 ORS_API_KEY = os.environ.get('ORS_API_KEY')
 
 @app.route('/')
