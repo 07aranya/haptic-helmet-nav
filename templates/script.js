@@ -906,6 +906,11 @@ function buildRouteSteps(route) {
       voiceSoonSent: false
     });
   });
+
+  // Skip "depart" step so navigation doesn't get stuck if starting >25m from origin
+  if (HapNav.routeSteps.length > 1) {
+    HapNav.currentStepIndex = 1;
+  }
 }
 
 function buildInstructionText(maneuver, roadName) {
@@ -1052,7 +1057,8 @@ function startNavigation() {
   }
 
   HapNav.isNavigating = true;
-  HapNav.currentStepIndex = 0;
+  if (HapNav.routeSteps.length > 1) HapNav.currentStepIndex = 1;
+  HapNav.routeSteps.forEach(s => s.hapticSent = false);
   HapNav.lastSpokenInstruction = null;
   HapNav.offRouteWarningActive = false;
 
@@ -1128,8 +1134,7 @@ function sendHapticForStep(step) {
   if (!HapNav.settings.haptic) return;
 
   let cmd = HAPTIC_COMMANDS.STRAIGHT; // Default (no buzz)
-  if (step.type === 'arrive') cmd = HAPTIC_COMMANDS.ARRIVED;
-  else if (step.modifier === 'sharp left') cmd = HAPTIC_COMMANDS.SHARP_LEFT;
+  if (step.modifier === 'sharp left') cmd = HAPTIC_COMMANDS.SHARP_LEFT;
   else if (step.modifier === 'sharp right') cmd = HAPTIC_COMMANDS.SHARP_RIGHT;
   else if (step.modifier === 'slight left') cmd = HAPTIC_COMMANDS.SLIGHT_LEFT;
   else if (step.modifier === 'slight right') cmd = HAPTIC_COMMANDS.SLIGHT_RIGHT;
@@ -1157,8 +1162,8 @@ function updateTurnInstructionFromPosition(lat, lng) {
     speak(buildVoiceInstruction({ ...step, distance: 100 }));
   }
 
-  // Exact 80m Haptic trigger (buffered to 85m to catch fast GPS/Simulation jumps)
-  if (distToManeuver <= 85 && !step.hapticSent) {
+  // Exact 80m Haptic trigger
+  if (distToManeuver <= 80 && !step.hapticSent) {
     step.hapticSent = true;
     sendHapticForStep(step);
   }
@@ -1325,7 +1330,8 @@ function startSimulation() {
   HapNav.isSimulating = true;
   HapNav.simRouteCoords = HapNav.route.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
   HapNav.simProgressIndex = 0;
-  HapNav.currentStepIndex = 0;
+  if (HapNav.routeSteps.length > 1) HapNav.currentStepIndex = 1;
+  HapNav.routeSteps.forEach(s => s.hapticSent = false);
   HapNav.lastSpokenInstruction = null;
 
   document.getElementById('sim-bar').classList.remove('hidden');
