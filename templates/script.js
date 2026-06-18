@@ -73,10 +73,16 @@ const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org';
 const OVERPASS_BASE = 'https://overpass-api.de/api/interpreter';
 
 const HAPTIC_COMMANDS = {
-  LEFT: 0x01,
-  RIGHT: 0x02,
-  STRAIGHT: 0x03,
-  ARRIVED: 0x04
+  SLIGHT_LEFT: 0x01,
+  SLIGHT_RIGHT: 0x02,
+  LEFT: 0x11,
+  RIGHT: 0x12,
+  SHARP_LEFT: 0x21,
+  SHARP_RIGHT: 0x22,
+  UTURN: 0x30,
+  STRAIGHT: 0x00,      // No buzz necessary
+  ARRIVED: 0xA0,
+  REROUTE: 0xB0
 };
 
 // Web Bluetooth — Nordic UART-like service used as a generic example
@@ -1113,12 +1119,20 @@ function buildVoiceInstruction(step) {
 function sendHapticForStep(step) {
   if (!HapNav.settings.haptic) return;
 
-  let cmd = HAPTIC_COMMANDS.STRAIGHT;
+  let cmd = HAPTIC_COMMANDS.STRAIGHT; // Default (no buzz)
   if (step.type === 'arrive') cmd = HAPTIC_COMMANDS.ARRIVED;
-  else if (step.modifier === 'left' || step.modifier === 'slight left' || step.modifier === 'sharp left') cmd = HAPTIC_COMMANDS.LEFT;
-  else if (step.modifier === 'right' || step.modifier === 'slight right' || step.modifier === 'sharp right') cmd = HAPTIC_COMMANDS.RIGHT;
+  else if (step.modifier === 'sharp left') cmd = HAPTIC_COMMANDS.SHARP_LEFT;
+  else if (step.modifier === 'sharp right') cmd = HAPTIC_COMMANDS.SHARP_RIGHT;
+  else if (step.modifier === 'slight left') cmd = HAPTIC_COMMANDS.SLIGHT_LEFT;
+  else if (step.modifier === 'slight right') cmd = HAPTIC_COMMANDS.SLIGHT_RIGHT;
+  else if (step.modifier === 'left') cmd = HAPTIC_COMMANDS.LEFT;
+  else if (step.modifier === 'right') cmd = HAPTIC_COMMANDS.RIGHT;
+  else if (step.modifier === 'uturn') cmd = HAPTIC_COMMANDS.UTURN;
 
-  sendHapticCommand(cmd);
+  // Only send a command to the helmet if an actual action is required
+  if (cmd !== HAPTIC_COMMANDS.STRAIGHT) {
+    sendHapticCommand(cmd);
+  }
 }
 
 /* Advance turn-by-turn based on a moving point (live GPS or simulation) */
@@ -1178,6 +1192,7 @@ function checkRouteDeviation(lat, lng) {
       banner.classList.remove('hidden');
       speak('Recalculating route');
       showToast('You are off route. Recalculating…', 'warning');
+      sendHapticCommand(HAPTIC_COMMANDS.REROUTE); // Triggers the Wave Sweep
       recalculateRouteFromCurrentPosition(lat, lng);
     }
   } else {
