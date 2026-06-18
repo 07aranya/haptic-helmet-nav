@@ -111,6 +111,9 @@
             <svg viewBox="0 0 24 24" width="16" height="16"><path d="M7 10l5-5 5 5M12 5v14M17 14l-5 5-5-5M12 19V5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
 
+          <div id="waypoints-container" style="display:flex;flex-direction:column;gap:8px;"></div>
+          <button class="btn btn-ghost btn-small" id="add-stop-btn" style="align-self: flex-start; padding: 4px 8px; font-size: 0.75rem; margin-bottom: 4px;">+ Add Stop</button>
+
           <div class="input-icon-row">
             <span class="input-icon dest-dot" aria-hidden="true"></span>
             <input type="text" id="destination-input" class="text-input" placeholder="Choose destination" autocomplete="off" aria-label="Destination" />
@@ -125,6 +128,9 @@
           </button>
           <button class="btn btn-ghost" id="clear-route-btn">Clear</button>
         </div>
+
+        <!-- Alternative Routes -->
+        <div class="alt-routes hidden" id="alt-routes" style="display:flex;gap:4px;margin-top:10px;overflow-x:auto;"></div>
 
         <!-- Route summary -->
         <div class="route-summary hidden" id="route-summary">
@@ -147,6 +153,9 @@
         </div>
 
         <div class="route-controls hidden" id="route-controls">
+          <button class="btn btn-ghost" id="save-route-btn" aria-label="Save route" data-tip="Save to Favorites" style="padding: 0 12px; flex: 0 0 auto;">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+          </button>
           <button class="btn btn-success" id="start-navigation-btn">
             <svg viewBox="0 0 24 24" width="18" height="18"><path d="M5 3l14 9-14 9V3z" fill="currentColor"/></svg>
             Start navigation
@@ -243,6 +252,14 @@
         </div>
       </section>
 
+      <!-- Favorite Routes -->
+      <section class="panel favorites-panel">
+        <h2 class="panel-title">Favorite routes</h2>
+        <ul class="favorites-list" id="favorites-list" style="list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px;">
+          <li class="favorites-empty" style="font-size:0.8rem; color:var(--text-faint);">No saved routes yet.</li>
+        </ul>
+      </section>
+
       <!-- Nearby Services -->
       <section class="panel nearby-panel">
         <h2 class="panel-title">Nearby services</h2>
@@ -332,6 +349,12 @@
         <span>Simulation</span>
         <div class="progress-track"><div class="progress-fill" id="sim-progress-fill"></div></div>
         <span id="sim-progress-text">0%</span>
+        <select id="sim-speed-select" style="background:var(--surface-strong); border:1px solid var(--border); color:var(--text); border-radius:4px; font-size:0.8rem; padding:2px 4px;">
+          <option value="1">1x</option>
+          <option value="2">2x</option>
+          <option value="4">4x</option>
+          <option value="10">10x</option>
+        </select>
         <button class="icon-btn" id="sim-stop-btn" aria-label="Stop simulation">
           <svg viewBox="0 0 24 24" width="18" height="18"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></svg>
         </button>
@@ -339,6 +362,9 @@
 
       <!-- Floating action buttons -->
       <div class="fab-stack">
+        <button class="fab" id="pitch-fab" aria-label="Toggle 3D Pitch" data-tip="3D Pitch">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 17h16M5 12h14M6 7h12" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
+        </button>
         <button class="fab" id="locate-fab" aria-label="Center on my location" data-tip="My location">
           <svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         </button>

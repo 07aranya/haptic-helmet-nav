@@ -11,6 +11,9 @@
 const HapNav = {
   map: null,
   tileLayer: null,
+  waypoints: [],
+  altRoutes: [],
+  favorites: [],
 
   // Markers / layers
   currentLocationMarker: null,
@@ -282,6 +285,18 @@ function initEventListeners() {
 
   // Swap
   document.getElementById('swap-locations').addEventListener('click', swapOriginDestination);
+
+
+  // Advanced features
+  const addStopBtn = document.getElementById('add-stop-btn');
+  if (addStopBtn) addStopBtn.addEventListener('click', addWaypointInput);
+  const saveRouteBtn = document.getElementById('save-route-btn');
+  if (saveRouteBtn) saveRouteBtn.addEventListener('click', saveCurrentRouteToFavorites);
+  const pitchFab = document.getElementById('pitch-fab');
+  if (pitchFab) pitchFab.addEventListener('click', toggle3DPitch);
+  
+  // Load favorites
+  loadFavorites();
 
   // Route actions
   document.getElementById('find-route-btn').addEventListener('click', findRoute);
@@ -832,7 +847,10 @@ async function findRoute() {
 
   try {
     const o = HapNav.originCoords, d = HapNav.destCoords;
-    const url = `${OSRM_BASE}/${o.lng},${o.lat};${d.lng},${d.lat}?overview=full&geometries=geojson&steps=true&annotations=true`;
+    const wpStr = HapNav.waypoints.filter(w => w !== null).map(w => `${w.lng},${w.lat}`).join(';');
+    const coordsStr = wpStr ? `${o.lng},${o.lat};${wpStr};${d.lng},${d.lat}` : `${o.lng},${o.lat};${d.lng},${d.lat}`;
+    const url = `${OSRM_BASE}/${coordsStr}?overview=full&geometries=geojson&steps=true&annotations=true&alternatives=3`;
+    
     const res = await fetch(url);
     if (!res.ok) throw new Error(`OSRM error: ${res.status}`);
     const data = await res.json();
@@ -841,9 +859,11 @@ async function findRoute() {
       throw new Error('No route found');
     }
 
-    const route = data.routes[0];
+    HapNav.altRoutes = data.routes;
+    const route = HapNav.altRoutes[0];
     HapNav.route = route;
     renderRoute(route);
+    renderAltRoutes();
     buildRouteSteps(route);
     updateRouteSummary(route);
     placeTurnMarkers();
@@ -902,6 +922,7 @@ function buildRouteSteps(route) {
       distance: step.distance,
       coords,
       hapticSent: false,
+      hapticImmediateSent: false,
       voiceNearSent: false,
       voiceSoonSent: false
     });
@@ -1058,7 +1079,7 @@ function startNavigation() {
 
   HapNav.isNavigating = true;
   if (HapNav.routeSteps.length > 1) HapNav.currentStepIndex = 1;
-  HapNav.routeSteps.forEach(s => s.hapticSent = false);
+  HapNav.routeSteps.forEach(s => { s.hapticSent = false; s.hapticImmediateSent = false; });
   HapNav.lastSpokenInstruction = null;
   HapNav.offRouteWarningActive = false;
 
@@ -1073,6 +1094,10 @@ function startNavigation() {
 }
 
 function stopNavigation() {
+  if (HapNav.isSimulating) {
+    stopSimulation();
+    return;
+  }
   if (!HapNav.isNavigating) return;
   HapNav.isNavigating = false;
   stopLiveTracking();
@@ -1162,9 +1187,15 @@ function updateTurnInstructionFromPosition(lat, lng) {
     speak(buildVoiceInstruction({ ...step, distance: 100 }));
   }
 
-  // Exact 80m Haptic trigger
+  // Exact 80m Haptic trigger (Preparation)
   if (distToManeuver <= 80 && !step.hapticSent) {
     step.hapticSent = true;
+    sendHapticForStep(step);
+  }
+
+  // Immediate 15m Haptic trigger (Execution)
+  if (distToManeuver <= 15 && !step.hapticImmediateSent) {
+    step.hapticImmediateSent = true;
     sendHapticForStep(step);
   }
 
@@ -1331,7 +1362,7 @@ function startSimulation() {
   HapNav.simRouteCoords = HapNav.route.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
   HapNav.simProgressIndex = 0;
   if (HapNav.routeSteps.length > 1) HapNav.currentStepIndex = 1;
-  HapNav.routeSteps.forEach(s => s.hapticSent = false);
+  HapNav.routeSteps.forEach(s => { s.hapticSent = false; s.hapticImmediateSent = false; });
   HapNav.lastSpokenInstruction = null;
 
   document.getElementById('sim-bar').classList.remove('hidden');
@@ -1353,10 +1384,9 @@ function startSimulation() {
   const totalPoints = HapNav.simRouteCoords.length;
   
   // Slow down simulation to prevent flooding the ESP32 Bluetooth command queue.
-  // Targets ~45-60 seconds total, moving at a realistic pace (800ms - 2000ms per step).
-  const stepIntervalMs = Math.max(800, Math.min(2000, 60000 / totalPoints));
+  const baseStepIntervalMs = Math.max(800, Math.min(2000, 60000 / totalPoints));
 
-  HapNav.simInterval = setInterval(() => {
+  function simStep() {
     HapNav.simProgressIndex++;
 
     if (HapNav.simProgressIndex >= totalPoints) {
@@ -1379,15 +1409,20 @@ function startSimulation() {
     document.getElementById('nbb-speed').textContent = formatSpeed(Math.max(0, simSpeedKmh));
 
     const remaining = HapNav.route.distance * (1 - pct / 100);
+    const eta = formatETA(remaining / (simSpeedKmh / 3.6));
+    document.getElementById('widget-eta').textContent = eta;
+    document.getElementById('nbb-eta').textContent = eta;
     document.getElementById('widget-distance').textContent = formatDistance(remaining);
     document.getElementById('nbb-distance').textContent = formatDistance(remaining);
 
-    const remainingSeconds = HapNav.route.duration * (1 - pct / 100);
-    document.getElementById('widget-eta').textContent = formatETA(remainingSeconds);
-    document.getElementById('nbb-eta').textContent = formatETA(remainingSeconds);
-
     updateTurnInstructionFromPosition(lat, lng);
-  }, stepIntervalMs);
+
+    const speedSelect = document.getElementById('sim-speed-select');
+    const multiplier = speedSelect ? parseFloat(speedSelect.value) : 1;
+    HapNav.simInterval = setTimeout(simStep, baseStepIntervalMs / multiplier);
+  }
+
+  HapNav.simInterval = setTimeout(simStep, baseStepIntervalMs);
 
   showToast('Simulation started', 'info', 2000);
 }
@@ -1396,7 +1431,7 @@ function stopSimulation() {
   if (!HapNav.isSimulating) return;
   HapNav.isSimulating = false;
 
-  clearInterval(HapNav.simInterval);
+  clearTimeout(HapNav.simInterval);
   HapNav.simInterval = null;
 
   if (HapNav.simMarker) { HapNav.simMarker.remove(); HapNav.simMarker = null; }
@@ -1789,4 +1824,171 @@ function initServiceWorker() {
       console.warn('Service worker registration failed:', err);
     });
   }
+}
+
+/* =========================================================
+   ADVANCED NAVIGATION FEATURES (Multi-stop, Favorites, 3D)
+   ========================================================= */
+
+function addWaypointInput() {
+  const container = document.getElementById('waypoints-container');
+  const index = HapNav.waypoints.length;
+  HapNav.waypoints.push(null);
+  
+  const div = document.createElement('div');
+  div.className = 'input-icon-row';
+  div.innerHTML = `
+    <span class="input-icon" style="background:var(--warning); box-shadow:0 0 6px var(--warning);"></span>
+    <input type="text" class="text-input" placeholder="Add stop..." autocomplete="off" aria-label="Waypoint" id="wp-input-${index}" />
+    <button class="ghost-btn" onclick="removeWaypoint(${index}, this.parentElement)" data-tip="Remove">×</button>
+  `;
+  container.appendChild(div);
+  
+  const input = div.querySelector('input');
+  // Simple autocomplete handling for waypoint (reusing origin suggestions container for simplicity)
+  input.addEventListener('input', () => {
+    HapNav.activeWaypointIndex = index;
+    handleAddressInput(input, 'destination-suggestions', 'waypoint');
+  });
+}
+
+function removeWaypoint(index, el) {
+  HapNav.waypoints[index] = null;
+  el.remove();
+}
+
+// Override selectAddress to support waypoints
+const originalSelectAddress = selectAddress;
+selectAddress = function(coords, role) {
+  if (role === 'waypoint') {
+    HapNav.waypoints[HapNav.activeWaypointIndex] = coords;
+    document.getElementById(`wp-input-${HapNav.activeWaypointIndex}`).value = coords.label.split(',')[0];
+    fitMapToMarkers(); // Update map bounds
+  } else {
+    originalSelectAddress(coords, role);
+  }
+};
+
+function renderAltRoutes() {
+  const container = document.getElementById('alt-routes');
+  container.innerHTML = '';
+  if (HapNav.altRoutes.length <= 1) {
+    container.classList.add('hidden');
+    return;
+  }
+  
+  container.classList.remove('hidden');
+  HapNav.altRoutes.forEach((route, index) => {
+    const btn = document.createElement('button');
+    btn.className = `alt-route-tab ${index === 0 ? 'active' : ''}`;
+    const duration = formatETA(route.duration);
+    btn.innerHTML = `Route ${index + 1}<br><span style="font-size:0.65rem;font-weight:normal">${duration}</span>`;
+    btn.onclick = () => selectAltRoute(index, btn);
+    container.appendChild(btn);
+  });
+}
+
+function selectAltRoute(index, btnEl) {
+  document.querySelectorAll('.alt-route-tab').forEach(b => b.classList.remove('active'));
+  btnEl.classList.add('active');
+  HapNav.route = HapNav.altRoutes[index];
+  renderRoute(HapNav.route);
+}
+
+function toggle3DPitch() {
+  const mapEl = document.getElementById('map');
+  mapEl.classList.toggle('map-3d-pitch');
+  const is3D = mapEl.classList.contains('map-3d-pitch');
+  
+  // Slight pan to offset the center when tilted
+  if (HapNav.currentLocationMarker) {
+    HapNav.map.panTo(HapNav.currentLocationMarker.getLatLng(), { animate: true });
+  }
+  showToast(is3D ? '3D Pitch Enabled' : '3D Pitch Disabled', 'info');
+}
+
+function saveCurrentRouteToFavorites() {
+  if (!HapNav.originCoords || !HapNav.destCoords) {
+    showToast('Plan a route first before saving.', 'warning');
+    return;
+  }
+  const name = prompt('Enter a name for this route (e.g., Home to Work):', 'My Route');
+  if (!name) return;
+  
+  const routeObj = {
+    id: Date.now(),
+    name,
+    origin: HapNav.originCoords,
+    dest: HapNav.destCoords,
+    waypoints: HapNav.waypoints.filter(w => w !== null)
+  };
+  
+  HapNav.favorites.push(routeObj);
+  localStorage.setItem('hapnav_favorites', JSON.stringify(HapNav.favorites));
+  renderFavoritesList();
+  showToast('Route saved to favorites', 'success');
+}
+
+function loadFavorites() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('hapnav_favorites') || '[]');
+    HapNav.favorites = saved;
+    renderFavoritesList();
+  } catch(e) {}
+}
+
+function renderFavoritesList() {
+  const ul = document.getElementById('favorites-list');
+  if (!ul) return;
+  ul.innerHTML = '';
+  
+  if (!HapNav.favorites.length) {
+    ul.innerHTML = '<li class="favorites-empty" style="font-size:0.8rem; color:var(--text-faint);">No saved routes yet.</li>';
+    return;
+  }
+  
+  HapNav.favorites.forEach(fav => {
+    const li = document.createElement('li');
+    li.className = 'favorite-item';
+    li.innerHTML = `
+      <div onclick="loadFavoriteRoute(${fav.id})" style="flex:1">
+        <div class="favorite-item-title">${escapeHtml(fav.name)}</div>
+        <div class="favorite-item-desc">${escapeHtml(fav.origin.label.split(',')[0])} → ${escapeHtml(fav.dest.label.split(',')[0])}</div>
+      </div>
+      <button class="favorite-delete" onclick="deleteFavoriteRoute(${fav.id})">×</button>
+    `;
+    ul.appendChild(li);
+  });
+}
+
+function loadFavoriteRoute(id) {
+  const fav = HapNav.favorites.find(f => f.id === id);
+  if (!fav) return;
+  
+  // Clear existing waypoints
+  document.getElementById('waypoints-container').innerHTML = '';
+  HapNav.waypoints = [];
+  
+  // Set origin and dest
+  selectAddress(fav.origin, 'origin');
+  selectAddress(fav.dest, 'destination');
+  
+  // Set waypoints
+  if (fav.waypoints && fav.waypoints.length > 0) {
+    fav.waypoints.forEach(wp => {
+      addWaypointInput();
+      const index = HapNav.waypoints.length - 1;
+      HapNav.activeWaypointIndex = index;
+      selectAddress(wp, 'waypoint');
+    });
+  }
+  
+  showToast(`Loaded ${fav.name}`, 'info');
+  findRoute();
+}
+
+function deleteFavoriteRoute(id) {
+  HapNav.favorites = HapNav.favorites.filter(f => f.id !== id);
+  localStorage.setItem('hapnav_favorites', JSON.stringify(HapNav.favorites));
+  renderFavoritesList();
 }
