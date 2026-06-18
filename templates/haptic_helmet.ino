@@ -11,9 +11,10 @@
 // ── PWM ──────────────────────────────────────────────────────
 #define PWM_FREQ   5000
 #define PWM_RES    8
-#define INT_LOW    77    // 30% — slight turns
-#define INT_MED    166   // 65% — standard turns
-#define INT_HIGH   217   // 85% — sharp/complex
+// ERM coin motors require higher duty cycles to overcome static friction
+#define INT_LOW    200   // Increased to guarantee the ERMs spin
+#define INT_MED    230   // Strong turn buzz
+#define INT_HIGH   255   // Sharp/complex max intensity
 #define INT_FULL   255   // 100% — arrival/rerouting only
 
 // ── BLE ──────────────────────────────────────────────────────
@@ -29,7 +30,7 @@ BLECharacteristic* pChar;
 uint8_t  cmdQueue[10];
 int      qHead = 0, qTail = 0;
 unsigned long lastBuzzTime = 0;
-#define  MIN_GAP 200    // ms gap to allow instant successive buzzing without crashing queue
+#define  MIN_GAP 50     // Minimal gap for instant reaction time before turns
 
 // ── Motor helpers ─────────────────────────────────────────────
 void buzzL(int intensity, int ms) {

@@ -90,6 +90,10 @@ const HAPTIC_COMMANDS = {
 const BLE_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
 const BLE_CHAR_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
 
+// BLE Write Queue to prevent GATT overlaps and ensure real-time delivery
+let isBleWriting = false;
+let bleWriteQueue = [];
+
 const NEARBY_QUERIES = {
   hospital: { tag: 'amenity=hospital', icon: '🏥', label: 'Hospital' },
   police: { tag: 'amenity=police', icon: '🚓', label: 'Police Station' },
@@ -1153,8 +1157,8 @@ function updateTurnInstructionFromPosition(lat, lng) {
     speak(buildVoiceInstruction({ ...step, distance: 100 }));
   }
 
-  // Exact 80m Haptic trigger
-  if (distToManeuver <= 80 && !step.hapticSent) {
+  // Exact 80m Haptic trigger (buffered to 85m to catch fast GPS/Simulation jumps)
+  if (distToManeuver <= 85 && !step.hapticSent) {
     step.hapticSent = true;
     sendHapticForStep(step);
   }
@@ -1523,9 +1527,26 @@ function setBleStatus(state, label) {
   widget.textContent = label;
 }
 
+async function processBleQueue() {
+  if (isBleWriting || bleWriteQueue.length === 0) return;
+  isBleWriting = true;
+  
+  const cmd = bleWriteQueue.shift();
+  try {
+    if (HapNav.bleCharacteristic) {
+      const data = new Uint8Array([cmd]);
+      await HapNav.bleCharacteristic.writeValue(data);
+    }
+  } catch (err) {
+    console.error('BLE write error:', err);
+  }
+  
+  isBleWriting = false;
+  processBleQueue(); // Process next command instantly
+}
+
 async function sendHapticCommand(cmd, isTest = false) {
   if (!HapNav.settings.haptic && !isTest) return;
-  // Lockout removed to allow identical consecutive turn commands (e.g. Left -> Left)
 
   HapNav.lastHapticCommand = cmd;
 
@@ -1534,16 +1555,13 @@ async function sendHapticCommand(cmd, isTest = false) {
     return;
   }
 
-  try {
-    const data = new Uint8Array([cmd]);
-    await HapNav.bleCharacteristic.writeValue(data);
-    if (isTest) {
-      const name = Object.entries(HAPTIC_COMMANDS).find(([, v]) => v === cmd)?.[0] || cmd;
-      showToast(`Sent ${name} command to helmet`, 'success', 1800);
-    }
-  } catch (err) {
-    console.error('BLE write error:', err);
-    if (isTest) showToast('Failed to send command to helmet.', 'danger');
+  // Queue the command to guarantee sequential execution and prevent GATT dropouts
+  bleWriteQueue.push(cmd);
+  processBleQueue();
+
+  if (isTest) {
+    const name = Object.entries(HAPTIC_COMMANDS).find(([, v]) => v === cmd)?.[0] || cmd;
+    showToast(`Sent ${name} command to helmet`, 'success', 1800);
   }
 }
 
