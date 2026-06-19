@@ -1193,8 +1193,8 @@ function updateTurnInstructionFromPosition(lat, lng) {
     sendHapticForStep(step);
   }
 
-  // Immediate 15m Haptic trigger (Execution)
-  if (distToManeuver <= 15 && !step.hapticImmediateSent) {
+  // Immediate 30m Haptic trigger (Execution)
+  if (distToManeuver <= 30 && !step.hapticImmediateSent) {
     step.hapticImmediateSent = true;
     sendHapticForStep(step);
   }
@@ -1205,7 +1205,7 @@ function updateTurnInstructionFromPosition(lat, lng) {
   }
 
   // Advance to next step
-  if (distToManeuver < 25) {
+  if (distToManeuver <= 15) {
     if (step.type === 'arrive') {
       finishNavigation();
       return;
