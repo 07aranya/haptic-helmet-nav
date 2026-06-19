@@ -774,6 +774,39 @@ a {
   margin-top: 12px;
 }
 
+.haptic-legend {
+  width: 100%;
+  margin-top: 12px;
+  font-size: 0.85rem;
+  background: var(--surface-light);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.haptic-legend summary {
+  padding: 10px 12px;
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--primary);
+  user-select: none;
+}
+
+.legend-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.legend-table th, .legend-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-top: 1px solid var(--border);
+}
+
+.legend-table th {
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
 .chip {
   padding: 6px 12px;
   border-radius: 999px;

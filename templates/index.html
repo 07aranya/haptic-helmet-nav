@@ -244,11 +244,37 @@
           <button class="btn btn-ghost" id="ble-disconnect-btn" disabled>Disconnect</button>
         </div>
         <div class="ble-test-row" id="ble-test-row" hidden>
-          <span class="panel-desc" style="margin:0">Test motors:</span>
+          <span class="panel-desc" style="margin:0; width: 100%;">Test motor patterns:</span>
+          <button class="chip" data-cmd="0x01">Slight L</button>
+          <button class="chip" data-cmd="0x02">Slight R</button>
           <button class="chip" data-cmd="0x11">Left</button>
           <button class="chip" data-cmd="0x12">Right</button>
+          <button class="chip" data-cmd="0x21">Sharp L</button>
+          <button class="chip" data-cmd="0x22">Sharp R</button>
+          <button class="chip" data-cmd="0x30">U-Turn</button>
+          <button class="chip" data-cmd="0x31">Hwy Exit L</button>
+          <button class="chip" data-cmd="0x32">Hwy Exit R</button>
+          <button class="chip" data-cmd="0x41">Roundabout Exit 1</button>
+          <button class="chip" data-cmd="0x51">Warn L</button>
+          <button class="chip" data-cmd="0x52">Warn R</button>
           <button class="chip" data-cmd="0xB0">Reroute</button>
           <button class="chip" data-cmd="0xA0">Arrived</button>
+
+          <details class="haptic-legend">
+            <summary>View Haptic Dictionary</summary>
+            <table class="legend-table">
+              <tr><th>Pattern</th><th>Power</th><th>Vibration</th></tr>
+              <tr><td>Slight Turn</td><td>Low 30%</td><td>1x short pulse (150ms)</td></tr>
+              <tr><td>Normal Turn</td><td>Med 65%</td><td>1x solid pulse (300ms)</td></tr>
+              <tr><td>Sharp Turn</td><td>High 85%</td><td>2x long pulses</td></tr>
+              <tr><td>U-Turn</td><td>High 85%</td><td>2x pulses (Both sides)</td></tr>
+              <tr><td>Hwy Exit</td><td>High 85%</td><td>3x rapid pulses</td></tr>
+              <tr><td>Roundabout</td><td>Med 65%</td><td>N pulses (N = Exit #)</td></tr>
+              <tr><td>Early Warn</td><td>Low/Med</td><td>Miniaturized pulse</td></tr>
+              <tr><td>Reroute</td><td>Med 65%</td><td>Wave Sweep (L-L-R-R)</td></tr>
+              <tr><td>Arrived</td><td>Full 100%</td><td>Alternating L/R (3x)</td></tr>
+            </table>
+          </details>
         </div>
       </section>
 
