@@ -1261,16 +1261,24 @@ async function recalculateRouteFromCurrentPosition(lat, lng) {
     HapNav.originCoords = { lat, lng, label: 'Current location' };
     placeOriginMarker(lat, lng);
 
-    const d = HapNav.destCoords;
-    const url = `${OSRM_BASE}/${lng},${lat};${d.lng},${d.lat}?overview=full&geometries=geojson&steps=true&annotations=true`;
+    const o = HapNav.originCoords, d = HapNav.destCoords;
+    const wpStr = HapNav.waypoints.filter(w => w !== null).map(w => `${w.lng},${w.lat}`).join(';');
+    const coordsStr = wpStr ? `${o.lng},${o.lat};${wpStr};${d.lng},${d.lat}` : `${o.lng},${o.lat};${d.lng},${d.lat}`;
+    const url = `${OSRM_BASE}/${coordsStr}?overview=full&geometries=geojson&steps=true&annotations=true&alternatives=3`;
+    
     const res = await fetch(url);
     if (!res.ok) throw new Error('OSRM error');
     const data = await res.json();
-    if (data.code !== 'Ok' || !data.routes.length) throw new Error('No route');
 
-    const route = data.routes[0];
+    if (data.code !== 'Ok' || !data.routes || !data.routes.length) {
+      throw new Error('No route found');
+    }
+
+    HapNav.altRoutes = data.routes;
+    const route = HapNav.altRoutes[0];
     HapNav.route = route;
     renderRoute(route);
+    renderAltRoutes();
     buildRouteSteps(route);
     updateRouteSummary(route);
     placeTurnMarkers();
