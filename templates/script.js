@@ -1155,21 +1155,41 @@ function buildVoiceInstruction(step) {
   }
 }
 
-function sendHapticForStep(step) {
+function sendHapticForStep(step, distText) {
   if (!HapNav.settings.haptic) return;
 
   let cmd = HAPTIC_COMMANDS.STRAIGHT; // Default (no buzz)
-  if (step.modifier === 'sharp left') cmd = HAPTIC_COMMANDS.SHARP_LEFT;
-  else if (step.modifier === 'sharp right') cmd = HAPTIC_COMMANDS.SHARP_RIGHT;
-  else if (step.modifier === 'slight left') cmd = HAPTIC_COMMANDS.SLIGHT_LEFT;
-  else if (step.modifier === 'slight right') cmd = HAPTIC_COMMANDS.SLIGHT_RIGHT;
-  else if (step.modifier === 'left') cmd = HAPTIC_COMMANDS.LEFT;
-  else if (step.modifier === 'right') cmd = HAPTIC_COMMANDS.RIGHT;
-  else if (step.modifier === 'uturn') cmd = HAPTIC_COMMANDS.UTURN;
+  let msg = '';
+
+  if (step.modifier === 'sharp left') {
+    cmd = HAPTIC_COMMANDS.SHARP_LEFT;
+    msg = 'Left motor double-buzzed (High 85%)';
+  } else if (step.modifier === 'sharp right') {
+    cmd = HAPTIC_COMMANDS.SHARP_RIGHT;
+    msg = 'Right motor double-buzzed (High 85%)';
+  } else if (step.modifier === 'slight left') {
+    cmd = HAPTIC_COMMANDS.SLIGHT_LEFT;
+    msg = 'Left motor slightly buzzed (Low 30%)';
+  } else if (step.modifier === 'slight right') {
+    cmd = HAPTIC_COMMANDS.SLIGHT_RIGHT;
+    msg = 'Right motor slightly buzzed (Low 30%)';
+  } else if (step.modifier === 'left') {
+    cmd = HAPTIC_COMMANDS.LEFT;
+    msg = 'Left motor buzzed (Med 65%)';
+  } else if (step.modifier === 'right') {
+    cmd = HAPTIC_COMMANDS.RIGHT;
+    msg = 'Right motor buzzed (Med 65%)';
+  } else if (step.modifier === 'uturn') {
+    cmd = HAPTIC_COMMANDS.UTURN;
+    msg = 'Both motors double-buzzed (High 85%)';
+  }
 
   // Only send a command to the helmet if an actual action is required
   if (cmd !== HAPTIC_COMMANDS.STRAIGHT) {
     sendHapticCommand(cmd);
+    if (distText) {
+      showToast(`Haptic: ${msg} at ${distText}`, 'info', 3000);
+    }
   }
 }
 
@@ -1190,13 +1210,13 @@ function updateTurnInstructionFromPosition(lat, lng) {
   // Exact 80m Haptic trigger (Preparation)
   if (distToManeuver <= 80 && !step.hapticSent) {
     step.hapticSent = true;
-    sendHapticForStep(step);
+    sendHapticForStep(step, Math.round(distToManeuver) + 'm');
   }
 
   // Immediate 30m Haptic trigger (Execution)
   if (distToManeuver <= 30 && !step.hapticImmediateSent) {
     step.hapticImmediateSent = true;
-    sendHapticForStep(step);
+    sendHapticForStep(step, Math.round(distToManeuver) + 'm');
   }
 
   if (distToManeuver <= 50 && !step.voiceSoonSent) {
