@@ -1427,7 +1427,7 @@ kbd {
 
   .turn-card { left: 16px; right: 16px; width: auto; }
   .nav-bottombar { left: 0; right: 0; bottom: 0; border-radius: 0; }
-  .fab-stack { bottom: calc(45vh + 20px); }
+  .fab-stack { bottom: 100px; }
 }
 
 @media (max-width: 480px) {
@@ -1480,51 +1480,6 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
   height: 100% !important;
   position: absolute !important;
   inset: 0 !important;
-}
-
-
-
-
-
-
-
-
-
-
-/* =========================================================
-   MAP FULLSCREEN FIX
-   ========================================================= */
-
-/* Ensure parent elements let children take full height */
-html, body {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-}
-
-/* Force the main layout structure to fill the screen */
-#app {
-  height: 100vh;
-  width: 100vw;
-}
-
-/* Force the map area and Leaflet's div to fill the container grid completely */
-.map-area {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-
-#map {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  width: 100% !important;
-  height: 100% !important;
-  z-index: 1;
 }
 
 /* 3D Pitch Map */
@@ -1589,4 +1544,484 @@ html, body {
 .favorite-delete:hover {
   background: var(--danger);
   color: #fff;
-}
+}
+
+/* =========================================================
+   RIDE FOCUS MODE (Desktop Cockpit)
+   ========================================================= */
+@media (min-width: 981px) {
+  .app.ride-focus {
+    grid-template-columns: 0px 1fr;
+  }
+
+  .app.ride-focus .sidebar {
+    padding: 0;
+    border-right: none;
+    opacity: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+}
+
+/* =========================================================
+   WAYPOINTS, ALT ROUTES & TURN ITINERARY
+   ========================================================= */
+.waypoints-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.waypoint-block {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.alt-routes {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.turns-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.turns-count {
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.turns-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.turn-list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.turn-list-item:hover {
+  border-color: var(--border-strong);
+}
+
+.turn-list-item.active {
+  border-color: var(--success);
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.turn-list-item.passed {
+  opacity: 0.48;
+}
+
+.turn-list-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
+
+.turn-list-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.turn-list-instr {
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.turn-list-meta {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+}
+
+.turn-list-cue {
+  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.14);
+  color: #38BDF8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  flex-shrink: 0;
+}
+
+[data-theme="light"] .turn-list-cue {
+  color: #0284C7;
+  background: rgba(2, 132, 199, 0.1);
+}
+
+/* =========================================================
+   RIDING COCKPIT HUD (TURN STACK, NEXT TURN, HAPTIC VISUALS)
+   ========================================================= */
+.turn-hud-stack {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  max-width: 490px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 40;
+  pointer-events: none;
+}
+
+.turn-hud-stack .turn-card {
+  position: relative;
+  top: auto;
+  left: auto;
+  right: auto;
+  max-width: none;
+  pointer-events: auto;
+  overflow: hidden;
+  padding: 14px 16px 18px;
+  border-color: var(--border-strong);
+}
+
+.turn-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.turn-stage-badge {
+  font-size: 0.64rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-dim);
+}
+
+[data-theme="light"] .turn-stage-badge {
+  background: rgba(15, 25, 45, 0.07);
+}
+
+.turn-stage-badge.warn {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--warning);
+}
+
+.turn-stage-badge.now {
+  background: rgba(16, 185, 129, 0.22);
+  color: var(--success);
+}
+
+.turn-haptic-badge {
+  font-size: 0.64rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.16);
+  color: #38BDF8;
+}
+
+[data-theme="light"] .turn-haptic-badge {
+  color: #0284C7;
+  background: rgba(2, 132, 199, 0.12);
+}
+
+.turn-hud-stack .turn-icon {
+  width: 56px;
+  height: 56px;
+  font-size: 1.9rem;
+  border-radius: var(--radius-md);
+}
+
+.turn-hud-stack .turn-instruction {
+  font-size: 1.05rem;
+}
+
+.turn-hud-stack .turn-distance {
+  font-size: 1.25rem;
+  line-height: 1.1;
+}
+
+.turn-mute-btn {
+  width: 44px;
+  height: 44px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.turn-proximity-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.turn-proximity-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #38BDF8, var(--warning), var(--success));
+  transition: width 0.35s ease;
+}
+
+.next-turn-pill {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-soft);
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  max-width: 100%;
+  pointer-events: auto;
+}
+
+.next-turn-label {
+  font-size: 0.66rem;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+.next-turn-icon {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.next-turn-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Visual Haptic Pulse Edges & HUD */
+.haptic-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 44;
+  transition: opacity 0.15s ease;
+}
+
+.haptic-edge-left {
+  left: 0;
+  background: linear-gradient(90deg, rgba(0, 212, 255, 0.85), transparent);
+}
+
+.haptic-edge-right {
+  right: 0;
+  background: linear-gradient(270deg, rgba(0, 212, 255, 0.85), transparent);
+}
+
+.haptic-edge.pulse-active {
+  animation: haptic-edge-flash 0.65s ease-out 2;
+}
+
+@keyframes haptic-edge-flash {
+  0% { opacity: 0.95; width: 20px; }
+  100% { opacity: 0; width: 10px; }
+}
+
+.haptic-hud {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(10, 14, 23, 0.92);
+  border: 1px solid rgba(56, 189, 248, 0.55);
+  color: #38BDF8;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 700;
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.25);
+  z-index: 45;
+  animation: card-in 0.2s ease;
+}
+
+.haptic-hud-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #38BDF8;
+  box-shadow: 0 0 8px #38BDF8;
+}
+
+/* Directional Rider Marker */
+.rider-arrow-wrap {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rider-arrow-marker {
+  width: 0;
+  height: 0;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-bottom: 22px solid #00D4FF;
+  filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.85));
+  transform-origin: 50% 60%;
+  transition: transform 0.25s linear;
+}
+
+.rider-arrow-marker.sim {
+  border-bottom-color: var(--success);
+  filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.85));
+}
+
+/* Upgraded Live Nav Bottom Bar */
+.nav-bottombar {
+  max-width: 680px;
+  justify-content: space-between;
+}
+
+.nbb-speed-stat .nbb-value {
+  font-size: 1.25rem;
+  color: #38BDF8;
+}
+
+[data-theme="light"] .nbb-speed-stat .nbb-value {
+  color: #0284C7;
+}
+
+.nbb-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.nbb-recenter {
+  padding: 8px 12px;
+  font-size: 0.78rem;
+}
+
+.nbb-itinerary-btn {
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+}
+
+.fab-recenter {
+  background: #0284C7;
+  color: #fff;
+  border-color: #38BDF8;
+}
+
+.sim-bar-badge {
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--success);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+#sim-speed-select {
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  font-size: 0.78rem;
+  padding: 3px 6px;
+}
+
+/* Off-route banner positioned safely below turn stack */
+.banner {
+  top: 152px;
+}
+
+/* Fix mobile layout collisions */
+@media (max-width: 980px) {
+  .turn-hud-stack {
+    left: 12px;
+    right: 12px;
+    max-width: none;
+  }
+
+  .sim-bar {
+    top: auto;
+    bottom: 86px;
+    left: 12px;
+    right: 12px;
+    transform: none;
+    min-width: 0;
+    justify-content: space-between;
+  }
+
+  .fab-stack {
+    bottom: 100px;
+    right: 12px;
+    transition: bottom var(--transition-med);
+  }
+
+  .sidebar.open ~ .map-area .fab-stack {
+    bottom: calc(45vh + 16px);
+  }
+
+  .haptic-hud {
+    top: auto;
+    bottom: 144px;
+    right: 12px;
+  }
+
+  .nav-bottombar {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+}

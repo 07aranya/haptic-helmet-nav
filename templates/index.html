@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover" />
   <title>HapNav V2 — Smart Haptic Navigation</title>
   <meta name="description" content="Smart Haptic Navigation System — real-time GPS, voice guidance, and haptic helmet integration." />
-  <meta name="theme-color" content="#0A0E17" />
+  <meta name="theme-color" content="#050505" />
 
   <!-- PWA -->
   <link rel="manifest" href="manifest.json" />
@@ -19,7 +19,6 @@
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="style.css">
- 
 </head>
 <body>
 
@@ -48,7 +47,7 @@
     <!-- ============ TOP BAR ============ -->
     <header class="topbar">
       <div class="topbar-left">
-        <button class="icon-btn" id="menu-toggle" aria-label="Toggle menu" aria-expanded="false">
+        <button class="icon-btn" id="menu-toggle" aria-label="Toggle sidebar" aria-expanded="true" data-tip="Toggle panel (F)">
           <svg viewBox="0 0 24 24" width="22" height="22"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
         </button>
         <div class="brand">
@@ -111,8 +110,8 @@
             <svg viewBox="0 0 24 24" width="16" height="16"><path d="M7 10l5-5 5 5M12 5v14M17 14l-5 5-5-5M12 19V5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
 
-          <div id="waypoints-container" style="display:flex;flex-direction:column;gap:8px;"></div>
-          <button class="btn btn-ghost btn-small" id="add-stop-btn" style="align-self: flex-start; padding: 4px 8px; font-size: 0.75rem; margin-bottom: 4px;">+ Add Stop</button>
+          <div id="waypoints-container" class="waypoints-container"></div>
+          <button class="btn btn-ghost btn-small" id="add-stop-btn" style="align-self: flex-start; padding: 4px 10px; font-size: 0.75rem; margin-bottom: 4px;">+ Add Stop</button>
 
           <div class="input-icon-row">
             <span class="input-icon dest-dot" aria-hidden="true"></span>
@@ -130,7 +129,7 @@
         </div>
 
         <!-- Alternative Routes -->
-        <div class="alt-routes hidden" id="alt-routes" style="display:flex;gap:4px;margin-top:10px;overflow-x:auto;"></div>
+        <div class="alt-routes hidden" id="alt-routes"></div>
 
         <!-- Route summary -->
         <div class="route-summary hidden" id="route-summary">
@@ -158,13 +157,22 @@
           </button>
           <button class="btn btn-success" id="start-navigation-btn">
             <svg viewBox="0 0 24 24" width="18" height="18"><path d="M5 3l14 9-14 9V3z" fill="currentColor"/></svg>
-            Start navigation
+            Start ride
           </button>
           <button class="btn btn-secondary" id="simulate-btn">
             <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 9l5 3-5 3V9z" fill="currentColor"/></svg>
             Simulate
           </button>
         </div>
+      </section>
+
+      <!-- Turn-by-Turn Itinerary -->
+      <section class="panel turns-panel hidden" id="turns-panel">
+        <div class="turns-panel-head">
+          <h2 class="panel-title" style="margin:0;">Turn itinerary</h2>
+          <span class="turns-count" id="turns-count">0 turns</span>
+        </div>
+        <ul class="turns-list" id="turns-list"></ul>
       </section>
 
       <!-- Dashboard Widgets -->
@@ -235,7 +243,7 @@
       <!-- Haptic Helmet Panel -->
       <section class="panel ble-panel">
         <h2 class="panel-title">Haptic helmet</h2>
-        <p class="panel-desc">Connect the HapticHelmet device to receive turn-by-turn vibration cues (ESP32 + Web Bluetooth).</p>
+        <p class="panel-desc">Connect the HapticHelmet device to receive two-stage turn-by-turn vibration cues (ESP32 + Web Bluetooth).</p>
         <div class="ble-row">
           <button class="btn btn-secondary" id="ble-connect-btn">
             <svg viewBox="0 0 24 24" width="18" height="18"><path d="M6.5 6.5l11 11L12 23V12L6.5 17.5M12 1v11l5.5-5.5M6.5 6.5L17.5 17.5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -263,16 +271,16 @@
           <details class="haptic-legend">
             <summary>View Haptic Dictionary</summary>
             <table class="legend-table">
-              <tr><th>Pattern</th><th>Power</th><th>Vibration</th></tr>
-              <tr><td>Slight Turn</td><td>Low 30%</td><td>1x short pulse (150ms)</td></tr>
-              <tr><td>Normal Turn</td><td>Med 65%</td><td>1x solid pulse (300ms)</td></tr>
-              <tr><td>Sharp Turn</td><td>High 85%</td><td>2x long pulses</td></tr>
-              <tr><td>U-Turn</td><td>High 85%</td><td>2x pulses (Both sides)</td></tr>
-              <tr><td>Hwy Exit</td><td>High 85%</td><td>3x rapid pulses</td></tr>
-              <tr><td>Roundabout</td><td>Med 65%</td><td>N pulses (N = Exit #)</td></tr>
-              <tr><td>Early Warn</td><td>Low/Med</td><td>Miniaturized pulse</td></tr>
-              <tr><td>Reroute</td><td>Med 65%</td><td>Wave Sweep (L-L-R-R)</td></tr>
-              <tr><td>Arrived</td><td>Full 100%</td><td>Alternating L/R (3x)</td></tr>
+              <tr><th>Pattern</th><th>Stage</th><th>Vibration</th></tr>
+              <tr><td>Slight Turn</td><td>Now</td><td>1x short pulse (L/R)</td></tr>
+              <tr><td>Normal Turn</td><td>Now</td><td>1x solid pulse (L/R)</td></tr>
+              <tr><td>Sharp Turn</td><td>Now</td><td>2x long pulses (L/R)</td></tr>
+              <tr><td>U-Turn</td><td>Now</td><td>2x pulses (Both sides)</td></tr>
+              <tr><td>Hwy Exit</td><td>Now</td><td>3x rapid pulses (L/R)</td></tr>
+              <tr><td>Roundabout</td><td>Now</td><td>N pulses (N = Exit #)</td></tr>
+              <tr><td>Early Warn</td><td>80–220m</td><td>Prepare pulse (0x51–0x56)</td></tr>
+              <tr><td>Reroute</td><td>Alert</td><td>Wave Sweep (L-L-R-R)</td></tr>
+              <tr><td>Arrived</td><td>End</td><td>Alternating L/R (3x)</td></tr>
             </table>
           </details>
         </div>
@@ -300,8 +308,6 @@
         </ul>
       </section>
 
-
-
       <!-- Settings -->
       <section class="panel settings-panel">
         <h2 class="panel-title">Preferences</h2>
@@ -318,6 +324,18 @@
           </button>
         </div>
         <div class="setting-row">
+          <span>Phone vibrate fallback</span>
+          <button class="toggle" id="vibrate-toggle" role="switch" aria-checked="true">
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
+        <div class="setting-row">
+          <span>Auto-focus ride cockpit</span>
+          <button class="toggle" id="ridefocus-toggle" role="switch" aria-checked="true">
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
+        <div class="setting-row">
           <span>Units</span>
           <div class="segmented" id="units-segmented">
             <button class="segment active" data-unit="metric">km</button>
@@ -326,7 +344,7 @@
         </div>
         <button class="btn btn-ghost" id="share-route-btn">Share route</button>
         <p class="kbd-hint">
-          <strong>Keyboard:</strong> <kbd>Space</kbd> mute · <kbd>S</kbd> start nav · <kbd>Esc</kbd> stop · <kbd>?</kbd> shortcuts
+          <strong>Keyboard:</strong> <kbd>Space</kbd> mute · <kbd>S</kbd> start · <kbd>F</kbd> cockpit · <kbd>R</kbd> recenter · <kbd>Esc</kbd> stop · <kbd>?</kbd> help
         </p>
       </section>
     </aside>
@@ -335,16 +353,42 @@
     <main class="map-area">
       <div id="map" class="map" role="application" aria-label="Navigation map"></div>
 
-      <!-- Turn instruction card -->
-      <div class="turn-card hidden" id="turn-card">
-        <div class="turn-icon" id="turn-icon" aria-hidden="true">↑</div>
-        <div class="turn-info">
-          <span class="turn-instruction" id="turn-instruction">Head north</span>
-          <span class="turn-distance" id="turn-distance">—</span>
+      <!-- Left & Right visual haptic feedback edges -->
+      <div class="haptic-edge haptic-edge-left" id="haptic-edge-left" aria-hidden="true"></div>
+      <div class="haptic-edge haptic-edge-right" id="haptic-edge-right" aria-hidden="true"></div>
+
+      <!-- Visual Haptic Cue Pill -->
+      <div class="haptic-hud hidden" id="haptic-hud" role="status" aria-live="polite">
+        <span class="haptic-hud-dot"></span>
+        <span id="haptic-hud-text">Haptic Cue</span>
+      </div>
+
+      <!-- Riding Cockpit Turn Card -->
+      <div class="turn-hud-stack hidden" id="turn-card">
+        <div class="turn-card">
+          <div class="turn-icon" id="turn-icon" aria-hidden="true">↑</div>
+          <div class="turn-info">
+            <div class="turn-meta-row">
+              <span class="turn-stage-badge" id="turn-stage-badge">NEXT TURN</span>
+              <span class="turn-haptic-badge hidden" id="turn-haptic-badge">1× L</span>
+            </div>
+            <span class="turn-instruction" id="turn-instruction">Head north</span>
+            <span class="turn-distance" id="turn-distance">—</span>
+          </div>
+          <button class="icon-btn turn-mute-btn" id="mute-btn" aria-label="Mute voice" data-tip="Mute voice">
+            <svg id="mute-icon" viewBox="0 0 24 24" width="22" height="22"><path d="M11 5L6 9H2v6h4l5 4V5z" fill="currentColor"/><path d="M16 8a5 5 0 010 8M19 5a8 8 0 010 14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+          </button>
+          <div class="turn-proximity-track" aria-hidden="true">
+            <div class="turn-proximity-fill" id="turn-proximity-fill"></div>
+          </div>
         </div>
-        <button class="icon-btn" id="mute-btn" aria-label="Mute voice" data-tip="Mute voice">
-          <svg id="mute-icon" viewBox="0 0 24 24" width="20" height="20"><path d="M11 5L6 9H2v6h4l5 4V5z" fill="currentColor"/><path d="M16 8a5 5 0 010 8M19 5a8 8 0 010 14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
-        </button>
+
+        <!-- Next-Next Turn Preview Pill -->
+        <div class="next-turn-pill hidden" id="next-turn-pill">
+          <span class="next-turn-label">Then</span>
+          <span class="next-turn-icon" id="next-turn-icon" aria-hidden="true">→</span>
+          <span class="next-turn-text" id="next-turn-text">Turn right in 200 m</span>
+        </div>
       </div>
 
       <!-- Off-route banner -->
@@ -353,29 +397,12 @@
         <span>You're off route — recalculating…</span>
       </div>
 
-      <!-- Live nav bottom bar -->
-      <div class="nav-bottombar hidden" id="nav-bottombar">
-        <div class="nav-bottombar-stat">
-          <span class="nbb-value" id="nbb-distance">—</span>
-          <span class="nbb-label">Remaining</span>
-        </div>
-        <div class="nav-bottombar-stat">
-          <span class="nbb-value" id="nbb-eta">—</span>
-          <span class="nbb-label">ETA</span>
-        </div>
-        <div class="nav-bottombar-stat">
-          <span class="nbb-value" id="nbb-speed">0 km/h</span>
-          <span class="nbb-label">Speed</span>
-        </div>
-        <button class="btn btn-danger nbb-stop" id="stop-navigation-btn">End</button>
-      </div>
-
       <!-- Simulation progress bar -->
       <div class="sim-bar hidden" id="sim-bar">
-        <span>Simulation</span>
+        <span class="sim-bar-badge">SIM</span>
         <div class="progress-track"><div class="progress-fill" id="sim-progress-fill"></div></div>
         <span id="sim-progress-text">0%</span>
-        <select id="sim-speed-select" style="background:var(--surface-strong); border:1px solid var(--border); color:var(--text); border-radius:4px; font-size:0.8rem; padding:2px 4px;">
+        <select id="sim-speed-select" aria-label="Simulation speed">
           <option value="1">1x</option>
           <option value="2">2x</option>
           <option value="4">4x</option>
@@ -386,8 +413,36 @@
         </button>
       </div>
 
+      <!-- Live nav bottom cockpit bar -->
+      <div class="nav-bottombar hidden" id="nav-bottombar">
+        <div class="nav-bottombar-stat nbb-speed-stat">
+          <span class="nbb-value" id="nbb-speed">0 km/h</span>
+          <span class="nbb-label">Speed</span>
+        </div>
+        <div class="nav-bottombar-stat">
+          <span class="nbb-value" id="nbb-distance">—</span>
+          <span class="nbb-label">Remaining</span>
+        </div>
+        <div class="nav-bottombar-stat">
+          <span class="nbb-value" id="nbb-eta">—</span>
+          <span class="nbb-label">ETA</span>
+        </div>
+        <div class="nbb-actions">
+          <button class="btn btn-secondary nbb-recenter hidden" id="nbb-recenter-btn" aria-label="Recenter on rider">
+            Recenter
+          </button>
+          <button class="icon-btn nbb-itinerary-btn" id="nbb-itinerary-btn" aria-label="Toggle route details" data-tip="Route panel">
+            <svg viewBox="0 0 24 24" width="20" height="20"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+          </button>
+          <button class="btn btn-danger nbb-stop" id="stop-navigation-btn">End</button>
+        </div>
+      </div>
+
       <!-- Floating action buttons -->
       <div class="fab-stack">
+        <button class="fab fab-recenter hidden" id="recenter-fab" aria-label="Follow rider" data-tip="Recenter (R)">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 2L4.5 20.3l.7.7L12 18l6.8 3 .7-.7z" fill="currentColor"/></svg>
+        </button>
         <button class="fab" id="pitch-fab" aria-label="Toggle 3D Pitch" data-tip="3D Pitch">
           <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 17h16M5 12h14M6 7h12" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
         </button>
@@ -442,7 +497,9 @@
       </div>
       <ul class="shortcuts-list">
         <li><kbd>Space</kbd><span>Mute / unmute voice</span></li>
-        <li><kbd>S</kbd><span>Start navigation</span></li>
+        <li><kbd>S</kbd><span>Start ride navigation</span></li>
+        <li><kbd>F</kbd><span>Toggle ride cockpit focus</span></li>
+        <li><kbd>R</kbd><span>Recenter map on rider</span></li>
         <li><kbd>Esc</kbd><span>Stop navigation / close dialogs</span></li>
         <li><kbd>L</kbd><span>Center on current location</span></li>
         <li><kbd>+</kbd> / <kbd>-</kbd><span>Zoom in / out</span></li>
@@ -453,7 +510,6 @@
 
   <!-- Leaflet -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  
   <script src="script.js"></script>
 </body>
 </html>

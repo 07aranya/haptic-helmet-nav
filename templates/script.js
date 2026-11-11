@@ -1,6 +1,6 @@
 /* =========================================================
    HapNav V2 — Smart Haptic Navigation System
-   script.js — Application Logic
+   script.js — Application Logic & Riding Cockpit
    ========================================================= */
 
 'use strict';
@@ -11,7 +11,7 @@
 const HapNav = {
   map: null,
   tileLayer: null,
-  waypoints: [],
+  waypoints: [],           // array of { id, coords: {lat, lng, label} | null }
   altRoutes: [],
   favorites: [],
 
@@ -20,6 +20,7 @@ const HapNav = {
   currentLocationCircle: null,
   originMarker: null,
   destMarker: null,
+  waypointMarkers: [],
   routeLine: null,
   routeShadowLine: null,
   turnMarkers: [],
@@ -30,6 +31,7 @@ const HapNav = {
   originCoords: null,      // {lat, lng, label}
   destCoords: null,        // {lat, lng, label}
   currentPosition: null,   // {lat, lng, accuracy, heading, speed}
+  lastBearing: 0,
 
   // Route data
   route: null,             // OSRM route object
@@ -39,11 +41,14 @@ const HapNav = {
   // Navigation state
   isNavigating: false,
   isSimulating: false,
+  followRider: true,
   simInterval: null,
   simProgressIndex: 0,
   simRouteCoords: [],
+  lastRerouteAt: 0,
 
   watchId: null,
+  wakeLock: null,
 
   // BLE
   bleDevice: null,
@@ -54,6 +59,8 @@ const HapNav = {
   settings: {
     voice: true,
     haptic: true,
+    vibrateFallback: true,
+    rideFocus: true,
     units: 'metric',
     theme: 'dark'
   },
@@ -64,8 +71,10 @@ const HapNav = {
 
   // Misc
   lastHapticCommand: null,
+  hapticHudTimer: null,
   offRouteWarningActive: false,
-  searchDebounce: null
+  searchDebounce: null,
+  waypointSeq: 0
 };
 
 /* =========================================================
@@ -75,6 +84,7 @@ const OSRM_BASE = 'https://router.project-osrm.org/route/v1/driving';
 const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org';
 const OVERPASS_BASE = 'https://overpass-api.de/api/interpreter';
 
+// Keep BLE protocol codes 100% aligned with HapticHelmet ESP32 firmware
 const HAPTIC_COMMANDS = {
   SLIGHT_LEFT: 0x01,
   SLIGHT_RIGHT: 0x02,
@@ -83,17 +93,28 @@ const HAPTIC_COMMANDS = {
   SHARP_LEFT: 0x21,
   SHARP_RIGHT: 0x22,
   UTURN: 0x30,
+  HWY_EXIT_LEFT: 0x31,
+  HWY_EXIT_RIGHT: 0x32,
+  ROUNDABOUT_1: 0x41,
+  ROUNDABOUT_2: 0x42,
+  ROUNDABOUT_3: 0x43,
+  ROUNDABOUT_4: 0x44,
+  WARN_LEFT: 0x51,
+  WARN_RIGHT: 0x52,
+  WARN_SHARP_LEFT: 0x53,
+  WARN_SHARP_RIGHT: 0x54,
+  WARN_UTURN: 0x55,
+  WARN_HWY: 0x56,
   STRAIGHT: 0x00,      // No buzz necessary
   ARRIVED: 0xA0,
   REROUTE: 0xB0
 };
 
-// Web Bluetooth — Nordic UART-like service used as a generic example
-// for a custom "HapticHelmet" ESP32 peripheral.
+// Web Bluetooth — Nordic UART-like service used for "HapticHelmet" ESP32 peripheral
 const BLE_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
 const BLE_CHAR_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
 
-// BLE Write Queue to prevent GATT overlaps and ensure real-time delivery
+// BLE Write Queue to prevent GATT overlaps and ensure sequential delivery
 let isBleWriting = false;
 let bleWriteQueue = [];
 
@@ -115,6 +136,7 @@ const TURN_ICONS = {
   uturn: '↩',
   roundabout: '↻',
   rotary: '↻',
+  'off ramp': '↗',
   arrive: '🏁',
   depart: '↑',
   merge: '↑',
@@ -136,7 +158,7 @@ function initLoadingSequence() {
     'Loading map tiles…',
     'Connecting to routing engine…',
     'Calibrating sensors…',
-    'Preparing haptic interface…',
+    'Preparing haptic cockpit…',
     'Ready.'
   ];
   let i = 0;
@@ -145,30 +167,21 @@ function initLoadingSequence() {
     i++;
     if (i >= steps.length) {
       clearInterval(interval);
-      setTimeout(boot, 400);
+      setTimeout(boot, 350);
     }
-  }, 380);
+  }, 340);
 }
 
 function boot() {
   const loadingScreen = document.getElementById('loading-screen');
   const app = document.getElementById('app');
 
-  // Step 1 — Make #app visible BEFORE Leaflet touches the DOM.
-  // We use visibility:hidden (not display:none) so the map container
-  // has real pixel dimensions when Leaflet reads them.
   app.classList.remove('hidden');
 
-  // Forces Leaflet to stretch to full screen right after visibility changes
   if (HapNav && HapNav.map) {
-    setTimeout(() => {
-      HapNav.map.invalidateSize();
-    }, 250); // Gives the browser 250ms to render the layout before recalculating map size
+    setTimeout(() => HapNav.map.invalidateSize(), 250);
   }
 
-  // Step 2 — Wait TWO animation frames so the browser has fully
-  // computed layout (grid rows/columns, sidebar width, topbar height)
-  // before we create the Leaflet map instance.
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       initMap();
@@ -178,21 +191,14 @@ function boot() {
       checkNetworkStatus();
       initKeyboardShortcuts();
 
-      // Step 3 — Fade out loading screen
       loadingScreen.classList.add('fade-out');
       setTimeout(() => loadingScreen.classList.add('hidden'), 650);
 
-      // Step 4 — Force Leaflet to re-measure its container after the
-      // loading screen is gone (layout may shift slightly).
       setTimeout(() => {
-        if (HapNav.map) {
-          HapNav.map.invalidateSize(true);
-        }
+        if (HapNav.map) HapNav.map.invalidateSize(true);
       }, 700);
 
-      // Step 5 — GPS fix (non-blocking)
       detectCurrentLocation({ silent: true, center: true });
-
       showToast('HapNav V2 ready', 'success');
     });
   });
@@ -206,14 +212,13 @@ function initMap() {
     zoomControl: false,
     attributionControl: true,
     worldCopyJump: true
-  }).setView([20.5937, 78.9629], 5); // Default: India centroid
+  }).setView([20.5937, 78.9629], 5);
 
   HapNav.tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   }).addTo(HapNav.map);
 
-  // Try to recover a cached "last view" for offline-first feel
   try {
     const cached = JSON.parse(localStorage.getItem('hapnav_last_view') || 'null');
     if (cached && cached.lat && cached.lng) {
@@ -221,7 +226,6 @@ function initMap() {
     }
   } catch (e) { /* ignore */ }
 
-  // Keep map sized correctly whenever the window or sidebar changes.
   const refreshMapSize = () => {
     if (!HapNav.map) return;
     HapNav.map.invalidateSize(true);
@@ -229,11 +233,16 @@ function initMap() {
   window.addEventListener('resize', refreshMapSize);
   window.addEventListener('orientationchange', refreshMapSize);
 
-  // ResizeObserver watches the actual map div — fires whenever the
-  // grid cell resizes (sidebar toggle, window resize, etc.)
   if (typeof ResizeObserver !== 'undefined') {
     new ResizeObserver(refreshMapSize).observe(document.getElementById('map'));
   }
+
+  // Pause auto-follow when rider manually pans map during navigation/simulation
+  HapNav.map.on('dragstart', () => {
+    if (HapNav.isNavigating || HapNav.isSimulating) {
+      setFollowRider(false);
+    }
+  });
 
   HapNav.map.on('moveend', () => {
     try {
@@ -247,10 +256,7 @@ function initMap() {
    EVENT LISTENERS
    ========================================================= */
 function initEventListeners() {
-  // Menu toggle (mobile sidebar)
   document.getElementById('menu-toggle').addEventListener('click', toggleSidebar);
-
-  // Theme toggle
   document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
 
   // SOS
@@ -273,8 +279,7 @@ function initEventListeners() {
 
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.input-group')) {
-      hideSuggestions('origin-suggestions');
-      hideSuggestions('destination-suggestions');
+      hideAllSuggestions();
     }
   });
 
@@ -286,16 +291,14 @@ function initEventListeners() {
   // Swap
   document.getElementById('swap-locations').addEventListener('click', swapOriginDestination);
 
-
-  // Advanced features
+  // Multi-stop, favorites, 3D pitch
   const addStopBtn = document.getElementById('add-stop-btn');
   if (addStopBtn) addStopBtn.addEventListener('click', addWaypointInput);
   const saveRouteBtn = document.getElementById('save-route-btn');
   if (saveRouteBtn) saveRouteBtn.addEventListener('click', saveCurrentRouteToFavorites);
   const pitchFab = document.getElementById('pitch-fab');
   if (pitchFab) pitchFab.addEventListener('click', toggle3DPitch);
-  
-  // Load favorites
+
   loadFavorites();
 
   // Route actions
@@ -307,6 +310,11 @@ function initEventListeners() {
   document.getElementById('stop-navigation-btn').addEventListener('click', stopNavigation);
   document.getElementById('simulate-btn').addEventListener('click', startSimulation);
   document.getElementById('sim-stop-btn').addEventListener('click', stopSimulation);
+
+  // Cockpit recenter & itinerary controls
+  document.getElementById('nbb-recenter-btn').addEventListener('click', recenterOnRider);
+  document.getElementById('recenter-fab').addEventListener('click', recenterOnRider);
+  document.getElementById('nbb-itinerary-btn').addEventListener('click', toggleSidebar);
 
   // Voice mute
   document.getElementById('mute-btn').addEventListener('click', toggleMute);
@@ -333,11 +341,11 @@ function initEventListeners() {
     btn.addEventListener('click', () => toggleNearbyCategory(btn));
   });
 
-
-
   // Settings toggles
   document.getElementById('voice-toggle').addEventListener('click', (e) => toggleSetting(e.currentTarget, 'voice'));
   document.getElementById('haptic-toggle').addEventListener('click', (e) => toggleSetting(e.currentTarget, 'haptic'));
+  document.getElementById('vibrate-toggle').addEventListener('click', (e) => toggleSetting(e.currentTarget, 'vibrateFallback'));
+  document.getElementById('ridefocus-toggle').addEventListener('click', (e) => toggleSetting(e.currentTarget, 'rideFocus'));
 
   // Units segmented control
   document.querySelectorAll('#units-segmented .segment').forEach(btn => {
@@ -350,6 +358,13 @@ function initEventListeners() {
   // Network status
   window.addEventListener('online', checkNetworkStatus);
   window.addEventListener('offline', checkNetworkStatus);
+
+  // Re-acquire wake lock if returning to tab mid-ride
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && (HapNav.isNavigating || HapNav.isSimulating)) {
+      requestWakeLock();
+    }
+  });
 }
 
 /* =========================================================
@@ -357,9 +372,8 @@ function initEventListeners() {
    ========================================================= */
 function initKeyboardShortcuts() {
   document.addEventListener('keydown', (e) => {
-    // Don't trigger shortcuts while typing
     const tag = document.activeElement.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA') {
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
       if (e.key === 'Escape') document.activeElement.blur();
       return;
     }
@@ -372,6 +386,14 @@ function initKeyboardShortcuts() {
       case 's':
       case 'S':
         if (!HapNav.isNavigating && HapNav.route) startNavigation();
+        break;
+      case 'f':
+      case 'F':
+        toggleSidebar();
+        break;
+      case 'r':
+      case 'R':
+        recenterOnRider();
         break;
       case 'Escape':
         if (HapNav.isNavigating) stopNavigation();
@@ -399,9 +421,9 @@ function initKeyboardShortcuts() {
 }
 
 /* =========================================================
-   UI HELPERS — TOASTS, MODALS, SIDEBAR
+   UI HELPERS — TOASTS, MODALS, SIDEBAR & RIDE FOCUS
    ========================================================= */
-function showToast(message, type = 'info', duration = 3800) {
+function showToast(message, type = 'info', duration = 3400) {
   const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
@@ -414,13 +436,59 @@ function showToast(message, type = 'info', duration = 3800) {
   }, duration);
 }
 
-function toggleSidebar() {
+function isMobileViewport() {
+  return window.matchMedia('(max-width: 980px)').matches;
+}
+
+function setRideFocus(enabled) {
+  const app = document.getElementById('app');
   const sidebar = document.getElementById('sidebar');
   const btn = document.getElementById('menu-toggle');
-  const isOpen = sidebar.classList.toggle('open');
-  btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-  // Sidebar toggling changes the map cell width — tell Leaflet
+
+  if (isMobileViewport()) {
+    sidebar.classList.toggle('open', !enabled);
+    btn.setAttribute('aria-expanded', !enabled ? 'true' : 'false');
+  } else {
+    app.classList.toggle('ride-focus', enabled);
+    btn.setAttribute('aria-expanded', !enabled ? 'true' : 'false');
+  }
+
   setTimeout(() => HapNav.map && HapNav.map.invalidateSize(true), 320);
+}
+
+function toggleSidebar() {
+  const app = document.getElementById('app');
+  const sidebar = document.getElementById('sidebar');
+  const btn = document.getElementById('menu-toggle');
+
+  if (isMobileViewport()) {
+    const isOpen = sidebar.classList.toggle('open');
+    btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  } else {
+    const isFocused = app.classList.toggle('ride-focus');
+    btn.setAttribute('aria-expanded', !isFocused ? 'true' : 'false');
+  }
+
+  setTimeout(() => HapNav.map && HapNav.map.invalidateSize(true), 320);
+}
+
+function setFollowRider(follow) {
+  HapNav.followRider = follow;
+  const active = HapNav.isNavigating || HapNav.isSimulating;
+  const showRecenter = active && !follow;
+  document.getElementById('nbb-recenter-btn').classList.toggle('hidden', !showRecenter);
+  document.getElementById('recenter-fab').classList.toggle('hidden', !showRecenter);
+}
+
+function recenterOnRider() {
+  setFollowRider(true);
+  if (HapNav.isSimulating && HapNav.simMarker) {
+    HapNav.map.setView(HapNav.simMarker.getLatLng(), Math.max(HapNav.map.getZoom(), 16), { animate: true });
+  } else if (HapNav.currentPosition) {
+    HapNav.map.setView([HapNav.currentPosition.lat, HapNav.currentPosition.lng], Math.max(HapNav.map.getZoom(), 16), { animate: true });
+  } else {
+    detectCurrentLocation({ silent: false, center: true });
+  }
 }
 
 function openModal(id) {
@@ -447,6 +515,32 @@ function toggleTheme() {
 }
 
 /* =========================================================
+   WAKE LOCK (Keep phone awake during rides)
+   ========================================================= */
+async function requestWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try {
+    if (!HapNav.wakeLock) {
+      HapNav.wakeLock = await navigator.wakeLock.request('screen');
+      HapNav.wakeLock.addEventListener('release', () => {
+        HapNav.wakeLock = null;
+      });
+    }
+  } catch (e) {
+    // Non-fatal on browsers/environments that disallow wake lock
+  }
+}
+
+async function releaseWakeLock() {
+  if (HapNav.wakeLock) {
+    try {
+      await HapNav.wakeLock.release();
+    } catch (e) { /* ignore */ }
+    HapNav.wakeLock = null;
+  }
+}
+
+/* =========================================================
    SETTINGS PERSISTENCE
    ========================================================= */
 function persistSettings() {
@@ -463,18 +557,17 @@ function loadSettingsFromState() {
     }
   } catch (e) { /* ignore */ }
 
-  // Apply theme
   if (HapNav.settings.theme === 'light') {
     document.documentElement.setAttribute('data-theme', 'light');
   }
 
-  // Apply toggles
   setToggleState('voice-toggle', HapNav.settings.voice);
   setToggleState('haptic-toggle', HapNav.settings.haptic);
+  setToggleState('vibrate-toggle', HapNav.settings.vibrateFallback);
+  setToggleState('ridefocus-toggle', HapNav.settings.rideFocus);
   HapNav.speechMuted = !HapNav.settings.voice;
   updateMuteIcon();
 
-  // Units
   document.querySelectorAll('#units-segmented .segment').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.unit === HapNav.settings.units);
   });
@@ -482,7 +575,7 @@ function loadSettingsFromState() {
 
 function setToggleState(id, value) {
   const el = document.getElementById(id);
-  el.setAttribute('aria-checked', value ? 'true' : 'false');
+  if (el) el.setAttribute('aria-checked', value ? 'true' : 'false');
 }
 
 function toggleSetting(el, key) {
@@ -496,7 +589,13 @@ function toggleSetting(el, key) {
   }
 
   persistSettings();
-  showToast(`${key === 'voice' ? 'Voice guidance' : 'Haptic feedback'} ${newVal ? 'enabled' : 'disabled'}`, 'info', 2000);
+  const labels = {
+    voice: 'Voice guidance',
+    haptic: 'Haptic feedback',
+    vibrateFallback: 'Phone vibrate fallback',
+    rideFocus: 'Auto-focus ride cockpit'
+  };
+  showToast(`${labels[key] || key} ${newVal ? 'enabled' : 'disabled'}`, 'info', 2000);
 }
 
 function setUnits(unit) {
@@ -505,8 +604,10 @@ function setUnits(unit) {
     btn.classList.toggle('active', btn.dataset.unit === unit);
   });
   persistSettings();
-  // Refresh displayed values if a route exists
-  if (HapNav.route) updateRouteSummary(HapNav.route);
+  if (HapNav.route) {
+    updateRouteSummary(HapNav.route);
+    renderTurnItinerary();
+  }
 }
 
 /* =========================================================
@@ -542,9 +643,11 @@ function detectCurrentLocation({ silent = false, center = false, fillOrigin = fa
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       const { latitude, longitude, accuracy, heading, speed } = pos.coords;
-      HapNav.currentPosition = { lat: latitude, lng: longitude, accuracy, heading, speed };
+      const prev = HapNav.currentPosition;
+      const computedHeading = resolveHeading(prev, latitude, longitude, heading);
+      HapNav.currentPosition = { lat: latitude, lng: longitude, accuracy, heading: computedHeading, speed };
 
-      placeCurrentLocationMarker(latitude, longitude, accuracy, heading);
+      placeCurrentLocationMarker(latitude, longitude, accuracy, computedHeading);
 
       if (center) HapNav.map.setView([latitude, longitude], 15);
 
@@ -584,18 +687,36 @@ function setGpsStatus(state, label) {
   widget.textContent = label;
 }
 
+function resolveHeading(prevPos, lat, lng, rawHeading) {
+  if (rawHeading != null && !Number.isNaN(rawHeading)) {
+    HapNav.lastBearing = rawHeading;
+    return rawHeading;
+  }
+  if (prevPos && haversineDistance(prevPos.lat, prevPos.lng, lat, lng) > 3) {
+    HapNav.lastBearing = computeBearing(prevPos.lat, prevPos.lng, lat, lng);
+  }
+  return HapNav.lastBearing;
+}
+
 function placeCurrentLocationMarker(lat, lng, accuracy = 0, heading = null) {
+  const showArrow = (HapNav.isNavigating || heading != null) && !Number.isNaN(heading);
+  const angle = showArrow ? Math.round(heading || 0) : 0;
+  const html = showArrow
+    ? `<div class="rider-arrow-wrap"><div class="rider-arrow-marker" style="transform: rotate(${angle}deg)"></div></div>`
+    : '<div class="pulse-marker"></div>';
+
   const icon = L.divIcon({
     className: '',
-    html: '<div class="pulse-marker"></div>',
-    iconSize: [18, 18],
-    iconAnchor: [9, 9]
+    html,
+    iconSize: showArrow ? [28, 28] : [18, 18],
+    iconAnchor: showArrow ? [14, 14] : [9, 9]
   });
 
   if (!HapNav.currentLocationMarker) {
     HapNav.currentLocationMarker = L.marker([lat, lng], { icon, zIndexOffset: 1000 }).addTo(HapNav.map);
   } else {
     HapNav.currentLocationMarker.setLatLng([lat, lng]);
+    HapNav.currentLocationMarker.setIcon(icon);
   }
 
   if (!HapNav.currentLocationCircle) {
@@ -621,7 +742,7 @@ function startLiveTracking() {
 
   HapNav.watchId = navigator.geolocation.watchPosition(
     onLivePositionUpdate,
-    (err) => {
+    () => {
       setGpsStatus('warning', 'Signal weak');
     },
     { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 }
@@ -637,42 +758,42 @@ function stopLiveTracking() {
 
 function onLivePositionUpdate(pos) {
   const { latitude, longitude, accuracy, heading, speed } = pos.coords;
-  HapNav.currentPosition = { lat: latitude, lng: longitude, accuracy, heading, speed };
+  const prev = HapNav.currentPosition;
+  const resolvedHeading = resolveHeading(prev, latitude, longitude, heading);
+  HapNav.currentPosition = { lat: latitude, lng: longitude, accuracy, heading: resolvedHeading, speed };
 
-  placeCurrentLocationMarker(latitude, longitude, accuracy, heading);
+  placeCurrentLocationMarker(latitude, longitude, accuracy, resolvedHeading);
   setGpsStatus('active', 'Active');
 
   if (HapNav.isNavigating) {
-    HapNav.map.setView([latitude, longitude], HapNav.map.getZoom(), { animate: true });
+    if (HapNav.followRider) {
+      HapNav.map.setView([latitude, longitude], Math.max(HapNav.map.getZoom(), 16), { animate: true });
+    }
     updateLiveNavStats(latitude, longitude, speed);
     checkRouteDeviation(latitude, longitude);
-    updateTurnInstructionFromPosition(latitude, longitude);
+    updateTurnInstructionFromPosition(latitude, longitude, speed || 0);
   }
 }
 
 function updateLiveNavStats(lat, lng, speed) {
-  // Speed
   const speedKmh = speed != null && speed >= 0 ? (speed * 3.6) : 0;
   const speedDisplay = formatSpeed(speedKmh);
   document.getElementById('widget-speed').textContent = speedDisplay;
   document.getElementById('nbb-speed').textContent = speedDisplay;
 
-  // Remaining distance along route (approx: distance to end via nearest point)
   if (HapNav.route) {
     const remaining = remainingRouteDistance(lat, lng);
     const distDisplay = formatDistance(remaining);
     document.getElementById('widget-distance').textContent = distDisplay;
     document.getElementById('nbb-distance').textContent = distDisplay;
 
-    // ETA based on remaining distance & average speed (fallback to route average)
-    const avgSpeedMs = speed && speed > 0.5 ? speed : (HapNav.route.distance / HapNav.route.duration);
+    const avgSpeedMs = speed && speed > 0.5 ? speed : (HapNav.route.distance / Math.max(1, HapNav.route.duration));
     const remainingSeconds = avgSpeedMs > 0 ? remaining / avgSpeedMs : HapNav.route.duration;
     const eta = formatETA(remainingSeconds);
     document.getElementById('widget-eta').textContent = eta;
     document.getElementById('nbb-eta').textContent = eta;
 
-    // Progress
-    const progressPct = Math.min(100, Math.max(0, 100 * (1 - remaining / HapNav.route.distance)));
+    const progressPct = Math.min(100, Math.max(0, 100 * (1 - remaining / Math.max(1, HapNav.route.distance))));
     setProgress(progressPct);
   }
 }
@@ -692,7 +813,7 @@ function setProgress(pct) {
 /* =========================================================
    GEOCODING — NOMINATIM AUTOCOMPLETE
    ========================================================= */
-function handleAddressInput(inputEl, suggestionsId, role) {
+function handleAddressInput(inputEl, suggestionsId, role, waypointId = null) {
   const query = inputEl.value.trim();
   clearTimeout(HapNav.searchDebounce);
 
@@ -702,17 +823,17 @@ function handleAddressInput(inputEl, suggestionsId, role) {
   }
 
   HapNav.searchDebounce = setTimeout(() => {
-    fetchAddressSuggestions(query, suggestionsId, role);
+    fetchAddressSuggestions(query, suggestionsId, role, waypointId);
   }, 400);
 }
 
-async function fetchAddressSuggestions(query, suggestionsId, role) {
+async function fetchAddressSuggestions(query, suggestionsId, role, waypointId = null) {
   try {
     const url = `${NOMINATIM_BASE}/search?format=jsonv2&q=${encodeURIComponent(query)}&limit=6&addressdetails=1`;
     const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
     if (!res.ok) throw new Error(`Nominatim error: ${res.status}`);
     const data = await res.json();
-    renderSuggestions(data, suggestionsId, role);
+    renderSuggestions(data, suggestionsId, role, waypointId);
   } catch (err) {
     console.error(err);
     showToast('Address search failed. Check your connection.', 'danger', 2500);
@@ -720,8 +841,9 @@ async function fetchAddressSuggestions(query, suggestionsId, role) {
   }
 }
 
-function renderSuggestions(results, suggestionsId, role) {
+function renderSuggestions(results, suggestionsId, role, waypointId = null) {
   const ul = document.getElementById(suggestionsId);
+  if (!ul) return;
   ul.innerHTML = '';
 
   if (!results.length) {
@@ -740,7 +862,7 @@ function renderSuggestions(results, suggestionsId, role) {
         lat: parseFloat(item.lat),
         lng: parseFloat(item.lon),
         label: item.display_name
-      }, role);
+      }, role, waypointId);
       hideSuggestions(suggestionsId);
     });
     ul.appendChild(li);
@@ -751,15 +873,31 @@ function renderSuggestions(results, suggestionsId, role) {
 
 function hideSuggestions(id) {
   const ul = document.getElementById(id);
+  if (!ul) return;
   ul.hidden = true;
   ul.innerHTML = '';
 }
 
-function selectAddress(coords, role) {
+function hideAllSuggestions() {
+  document.querySelectorAll('.suggestions').forEach(ul => {
+    ul.hidden = true;
+    ul.innerHTML = '';
+  });
+}
+
+function selectAddress(coords, role, waypointId = null) {
   if (role === 'origin') {
     HapNav.originCoords = coords;
     document.getElementById('origin-input').value = coords.label.split(',')[0];
     placeOriginMarker(coords.lat, coords.lng);
+  } else if (role === 'waypoint' && waypointId != null) {
+    const wp = HapNav.waypoints.find(w => w.id === waypointId);
+    if (wp) {
+      wp.coords = coords;
+      const input = document.getElementById(`wp-input-${waypointId}`);
+      if (input) input.value = coords.label.split(',')[0];
+      placeWaypointMarkers();
+    }
   } else {
     HapNav.destCoords = coords;
     document.getElementById('destination-input').value = coords.label.split(',')[0];
@@ -775,12 +913,12 @@ function escapeHtml(str) {
 }
 
 /* =========================================================
-   MARKERS — ORIGIN / DESTINATION
+   MARKERS — ORIGIN / DESTINATION / WAYPOINTS
    ========================================================= */
 function placeOriginMarker(lat, lng) {
   const icon = L.divIcon({
     className: '',
-    html: '<div style="width:16px;height:16px;border-radius:50%;background:#00E5A0;border:3px solid #0A0E17;box-shadow:0 0 10px #00E5A0;"></div>',
+    html: '<div style="width:16px;height:16px;border-radius:50%;background:#10B981;border:3px solid #050505;box-shadow:0 0 10px #10B981;"></div>',
     iconSize: [16, 16],
     iconAnchor: [8, 8]
   });
@@ -791,7 +929,7 @@ function placeOriginMarker(lat, lng) {
 function placeDestMarker(lat, lng) {
   const icon = L.divIcon({
     className: '',
-    html: '<div style="width:16px;height:16px;border-radius:50%;background:#FF4D6D;border:3px solid #0A0E17;box-shadow:0 0 10px #FF4D6D;"></div>',
+    html: '<div style="width:16px;height:16px;border-radius:50%;background:#EF4444;border:3px solid #050505;box-shadow:0 0 10px #EF4444;"></div>',
     iconSize: [16, 16],
     iconAnchor: [8, 8]
   });
@@ -799,11 +937,32 @@ function placeDestMarker(lat, lng) {
   HapNav.destMarker = L.marker([lat, lng], { icon, zIndexOffset: 800 }).addTo(HapNav.map);
 }
 
+function placeWaypointMarkers() {
+  HapNav.waypointMarkers.forEach(m => m.remove());
+  HapNav.waypointMarkers = [];
+
+  HapNav.waypoints
+    .filter(w => w.coords !== null)
+    .forEach((w, idx) => {
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="width:20px;height:20px;border-radius:50%;background:#F59E0B;color:#050505;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid #050505;box-shadow:0 0 10px #F59E0B;">${idx + 1}</div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+      });
+      const marker = L.marker([w.coords.lat, w.coords.lng], { icon, zIndexOffset: 780 })
+        .addTo(HapNav.map)
+        .bindPopup(`<strong>Stop ${idx + 1}</strong><br>${escapeHtml(w.coords.label)}`);
+      HapNav.waypointMarkers.push(marker);
+    });
+}
+
 function fitMapToMarkers() {
   const points = [];
   if (HapNav.originMarker) points.push(HapNav.originMarker.getLatLng());
+  HapNav.waypointMarkers.forEach(m => points.push(m.getLatLng()));
   if (HapNav.destMarker) points.push(HapNav.destMarker.getLatLng());
-  if (points.length === 2) {
+  if (points.length >= 2) {
     HapNav.map.fitBounds(L.latLngBounds(points), { padding: [60, 60] });
   } else if (points.length === 1) {
     HapNav.map.setView(points[0], 14);
@@ -846,11 +1005,13 @@ async function findRoute() {
   setNavStatus('Calculating route…');
 
   try {
-    const o = HapNav.originCoords, d = HapNav.destCoords;
-    const wpStr = HapNav.waypoints.filter(w => w !== null).map(w => `${w.lng},${w.lat}`).join(';');
+    const o = HapNav.originCoords;
+    const d = HapNav.destCoords;
+    const wpCoords = HapNav.waypoints.filter(w => w.coords !== null).map(w => w.coords);
+    const wpStr = wpCoords.map(w => `${w.lng},${w.lat}`).join(';');
     const coordsStr = wpStr ? `${o.lng},${o.lat};${wpStr};${d.lng},${d.lat}` : `${o.lng},${o.lat};${d.lng},${d.lat}`;
     const url = `${OSRM_BASE}/${coordsStr}?overview=full&geometries=geojson&steps=true&annotations=true&alternatives=3`;
-    
+
     const res = await fetch(url);
     if (!res.ok) throw new Error(`OSRM error: ${res.status}`);
     const data = await res.json();
@@ -860,13 +1021,8 @@ async function findRoute() {
     }
 
     HapNav.altRoutes = data.routes;
-    const route = HapNav.altRoutes[0];
-    HapNav.route = route;
-    renderRoute(route);
+    applySelectedRoute(HapNav.altRoutes[0]);
     renderAltRoutes();
-    buildRouteSteps(route);
-    updateRouteSummary(route);
-    placeTurnMarkers();
 
     document.getElementById('route-summary').classList.remove('hidden');
     document.getElementById('route-controls').classList.remove('hidden');
@@ -880,15 +1036,23 @@ async function findRoute() {
   }
 }
 
+function applySelectedRoute(route) {
+  HapNav.route = route;
+  renderRoute(route);
+  buildRouteSteps(route);
+  updateRouteSummary(route);
+  placeTurnMarkers();
+  renderTurnItinerary();
+}
+
 function renderRoute(route) {
   const latlngs = route.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
 
   if (HapNav.routeLine) HapNav.routeLine.remove();
   if (HapNav.routeShadowLine) HapNav.routeShadowLine.remove();
 
-  // Shadow/glow line beneath main line
   HapNav.routeShadowLine = L.polyline(latlngs, {
-    color: '#007BFF',
+    color: '#0284C7',
     weight: 10,
     opacity: 0.25,
     lineCap: 'round',
@@ -910,28 +1074,47 @@ function buildRouteSteps(route) {
   HapNav.routeSteps = [];
   HapNav.currentStepIndex = 0;
 
-  const leg = route.legs[0];
-  leg.steps.forEach(step => {
-    const maneuver = step.maneuver;
-    const coords = step.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
-    HapNav.routeSteps.push({
-      type: maneuver.type,
-      modifier: maneuver.modifier || 'straight',
-      instruction: buildInstructionText(maneuver, step.name),
-      location: [maneuver.location[1], maneuver.location[0]],
-      distance: step.distance,
-      coords,
-      hapticSent: false,
-      hapticImmediateSent: false,
-      voiceNearSent: false,
-      voiceSoonSent: false
+  const legs = route.legs || [];
+  legs.forEach((leg, legIdx) => {
+    const isLastLeg = legIdx === legs.length - 1;
+    (leg.steps || []).forEach(step => {
+      const maneuver = step.maneuver;
+      // Skip intermediate leg depart steps so multi-stop transitions stay seamless
+      if (legIdx > 0 && maneuver.type === 'depart') return;
+
+      const isStopArrival = !isLastLeg && maneuver.type === 'arrive';
+      const coords = step.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+      HapNav.routeSteps.push({
+        type: isStopArrival ? 'waypoint' : maneuver.type,
+        modifier: maneuver.modifier || 'straight',
+        exit: maneuver.exit || null,
+        instruction: isStopArrival
+          ? `Arrive at stop ${legIdx + 1}`
+          : buildInstructionText(maneuver, step.name),
+        location: [maneuver.location[1], maneuver.location[0]],
+        distance: step.distance,
+        coords,
+        hapticSent: false,
+        hapticImmediateSent: false,
+        voiceNearSent: false,
+        voiceSoonSent: false
+      });
     });
   });
 
-  // Skip "depart" step so navigation doesn't get stuck if starting >25m from origin
+  // Skip initial "depart" step so navigation doesn't stall if starting >15m from origin
   if (HapNav.routeSteps.length > 1) {
     HapNav.currentStepIndex = 1;
   }
+}
+
+function resetStepAlertFlags() {
+  HapNav.routeSteps.forEach(s => {
+    s.hapticSent = false;
+    s.hapticImmediateSent = false;
+    s.voiceNearSent = false;
+    s.voiceSoonSent = false;
+  });
 }
 
 function buildInstructionText(maneuver, roadName) {
@@ -943,15 +1126,19 @@ function buildInstructionText(maneuver, roadName) {
       return 'You have arrived at your destination';
     case 'turn':
       return `Turn ${maneuver.modifier}${name}`;
+    case 'off ramp':
+      return `Take exit ${maneuver.modifier || ''}${name}`.replace(/\s+/g, ' ').trim();
     case 'continue':
       return `Continue straight${name}`;
     case 'merge':
       return `Merge${name}`;
     case 'roundabout':
-    case 'rotary':
-      return `Enter the roundabout${name}`;
+    case 'rotary': {
+      const exitStr = maneuver.exit ? ` (Exit ${maneuver.exit})` : '';
+      return `Enter the roundabout${exitStr}${name}`;
+    }
     case 'fork':
-      return `Take the ${maneuver.modifier} fork${name}`;
+      return `Take the ${maneuver.modifier || ''} fork${name}`.replace(/\s+/g, ' ').trim();
     case 'new name':
       return `Continue${name}`;
     default:
@@ -964,15 +1151,14 @@ function capitalize(s) {
 }
 
 function updateRouteSummary(route) {
-  const distance = route.distance; // meters
-  const duration = route.duration; // seconds
+  const distance = route.distance;
+  const duration = route.duration;
+  const turnCount = HapNav.routeSteps.filter(s => s.type !== 'depart').length;
 
   document.getElementById('summary-distance').textContent = formatDistance(distance);
   document.getElementById('summary-duration').textContent = formatDuration(duration);
   document.getElementById('summary-eta').textContent = formatETA(duration);
-  document.getElementById('summary-turns').textContent = HapNav.routeSteps.length
-    ? (HapNav.routeSteps.length - 1)
-    : route.legs[0].steps.length - 1;
+  document.getElementById('summary-turns').textContent = turnCount;
 
   document.getElementById('widget-distance').textContent = formatDistance(distance);
   document.getElementById('widget-eta').textContent = formatETA(duration);
@@ -983,7 +1169,7 @@ function formatDistance(meters) {
     const miles = meters / 1609.34;
     return miles < 0.5 ? `${(meters * 3.28084).toFixed(0)} ft` : `${miles.toFixed(1)} mi`;
   }
-  return meters < 1000 ? `${meters.toFixed(0)} m` : `${(meters / 1000).toFixed(1)} km`;
+  return meters < 1000 ? `${Math.round(meters)} m` : `${(meters / 1000).toFixed(1)} km`;
 }
 
 function formatDuration(seconds) {
@@ -1000,7 +1186,7 @@ function formatETA(secondsFromNow) {
 }
 
 /* =========================================================
-   TURN MARKERS
+   TURN MARKERS & TURN ITINERARY LIST
    ========================================================= */
 function placeTurnMarkers() {
   clearTurnMarkers();
@@ -1020,7 +1206,7 @@ function placeTurnMarkers() {
       iconAnchor: [15, 15]
     });
 
-    const marker = L.marker(step.location, { icon: divIcon, zIndexOffset: 500 })
+    const marker = L.marker(step.location, { icon, zIndexOffset: 500 })
       .addTo(HapNav.map)
       .bindPopup(`<strong>Turn ${idx}: ${escapeHtml(step.instruction)}</strong><br>${formatDistance(step.distance)}`);
 
@@ -1037,6 +1223,69 @@ function clearTurnMarkers() {
   HapNav.turnMarkers = [];
 }
 
+function renderTurnItinerary() {
+  const panel = document.getElementById('turns-panel');
+  const list = document.getElementById('turns-list');
+  const countEl = document.getElementById('turns-count');
+  if (!panel || !list) return;
+
+  const steps = HapNav.routeSteps
+    .map((step, index) => ({ step, index }))
+    .filter(item => item.step.type !== 'depart');
+
+  if (!steps.length) {
+    panel.classList.add('hidden');
+    list.innerHTML = '';
+    return;
+  }
+
+  panel.classList.remove('hidden');
+  countEl.textContent = `${steps.length} turn${steps.length > 1 ? 's' : ''}`;
+  list.innerHTML = '';
+
+  steps.forEach(({ step, index }) => {
+    const icon = TURN_ICONS[step.modifier] || TURN_ICONS[step.type] || TURN_ICONS.default;
+    const spec = getHapticSpecForStep(step);
+    const li = document.createElement('li');
+    li.className = 'turn-list-item';
+    li.dataset.stepIndex = String(index);
+    if (index === HapNav.currentStepIndex && (HapNav.isNavigating || HapNav.isSimulating)) {
+      li.classList.add('active');
+    }
+
+    li.innerHTML = `
+      <span class="turn-list-icon">${icon}</span>
+      <div class="turn-list-body">
+        <span class="turn-list-instr">${escapeHtml(step.instruction)}</span>
+        <span class="turn-list-meta">${formatDistance(step.distance)}</span>
+      </div>
+      ${spec.badge ? `<span class="turn-list-cue">${escapeHtml(spec.badge)}</span>` : ''}
+    `;
+
+    li.addEventListener('click', () => {
+      setFollowRider(false);
+      HapNav.map.setView(step.location, 17, { animate: true });
+      const marker = HapNav.turnMarkers[index - 1];
+      if (marker) marker.openPopup();
+    });
+
+    list.appendChild(li);
+  });
+}
+
+function updateTurnItineraryActive() {
+  const list = document.getElementById('turns-list');
+  if (!list) return;
+  list.querySelectorAll('.turn-list-item').forEach(li => {
+    const idx = Number(li.dataset.stepIndex);
+    li.classList.toggle('active', idx === HapNav.currentStepIndex);
+    li.classList.toggle('passed', idx < HapNav.currentStepIndex);
+    if (idx === HapNav.currentStepIndex) {
+      li.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  });
+}
+
 /* =========================================================
    CLEAR ROUTE
    ========================================================= */
@@ -1045,15 +1294,24 @@ function clearRoute() {
   if (HapNav.routeShadowLine) { HapNav.routeShadowLine.remove(); HapNav.routeShadowLine = null; }
   if (HapNav.originMarker) { HapNav.originMarker.remove(); HapNav.originMarker = null; }
   if (HapNav.destMarker) { HapNav.destMarker.remove(); HapNav.destMarker = null; }
+  HapNav.waypointMarkers.forEach(m => m.remove());
+  HapNav.waypointMarkers = [];
   clearTurnMarkers();
 
   HapNav.route = null;
+  HapNav.altRoutes = [];
   HapNav.routeSteps = [];
   HapNav.originCoords = null;
   HapNav.destCoords = null;
+  HapNav.waypoints = [];
 
   document.getElementById('origin-input').value = '';
   document.getElementById('destination-input').value = '';
+  document.getElementById('waypoints-container').innerHTML = '';
+  document.getElementById('alt-routes').innerHTML = '';
+  document.getElementById('alt-routes').classList.add('hidden');
+  document.getElementById('turns-list').innerHTML = '';
+  document.getElementById('turns-panel').classList.add('hidden');
   document.getElementById('route-summary').classList.add('hidden');
   document.getElementById('route-controls').classList.add('hidden');
 
@@ -1077,20 +1335,29 @@ function startNavigation() {
     return;
   }
 
+  if (HapNav.isSimulating) stopSimulation();
+
   HapNav.isNavigating = true;
-  if (HapNav.routeSteps.length > 1) HapNav.currentStepIndex = 1;
-  HapNav.routeSteps.forEach(s => { s.hapticSent = false; s.hapticImmediateSent = false; });
+  HapNav.currentStepIndex = HapNav.routeSteps.length > 1 ? 1 : 0;
+  resetStepAlertFlags();
   HapNav.lastSpokenInstruction = null;
   HapNav.offRouteWarningActive = false;
+  setFollowRider(true);
 
   document.getElementById('turn-card').classList.remove('hidden');
   document.getElementById('nav-bottombar').classList.remove('hidden');
   setNavStatus('Navigating');
 
+  if (HapNav.settings.rideFocus) {
+    setRideFocus(true);
+  }
+
+  requestWakeLock();
   startLiveTracking();
   announceCurrentStep(true);
+  updateTurnItineraryActive();
 
-  showToast('Navigation started', 'success');
+  showToast('Ride navigation started', 'success');
 }
 
 function stopNavigation() {
@@ -1101,11 +1368,16 @@ function stopNavigation() {
   if (!HapNav.isNavigating) return;
   HapNav.isNavigating = false;
   stopLiveTracking();
+  releaseWakeLock();
+  setFollowRider(true);
 
   document.getElementById('turn-card').classList.add('hidden');
   document.getElementById('nav-bottombar').classList.add('hidden');
   document.getElementById('offroute-banner').classList.add('hidden');
+  document.getElementById('nbb-recenter-btn').classList.add('hidden');
+  document.getElementById('recenter-fab').classList.add('hidden');
 
+  setRideFocus(false);
   setNavStatus('Idle');
   showToast('Navigation ended', 'info', 2000);
 }
@@ -1115,22 +1387,183 @@ function setNavStatus(text) {
 }
 
 /* =========================================================
-   TURN-BY-TURN LOGIC (live & simulated)
+   HAPTIC MAPPING & TWO-STAGE TURN-BY-TURN LOGIC
    ========================================================= */
+function getHapticSpecForStep(step) {
+  if (!step) return { warnCmd: null, confirmCmd: HAPTIC_COMMANDS.STRAIGHT, badge: '', side: 'none', msg: '' };
+
+  if (step.type === 'arrive') {
+    return {
+      warnCmd: null,
+      confirmCmd: HAPTIC_COMMANDS.ARRIVED,
+      badge: 'END',
+      side: 'both',
+      msg: 'Arrived (Alternating L/R 3×)'
+    };
+  }
+
+  if (step.type === 'roundabout' || step.type === 'rotary') {
+    const exitNum = Math.max(1, Math.min(4, Number(step.exit) || 1));
+    return {
+      warnCmd: HAPTIC_COMMANDS.WARN_HWY,
+      confirmCmd: 0x40 + exitNum,
+      badge: `RB #${exitNum}`,
+      side: 'right',
+      msg: `Roundabout exit ${exitNum} (${exitNum}× R)`
+    };
+  }
+
+  if (step.type === 'off ramp') {
+    const isLeft = (step.modifier || '').includes('left');
+    return {
+      warnCmd: HAPTIC_COMMANDS.WARN_HWY,
+      confirmCmd: isLeft ? HAPTIC_COMMANDS.HWY_EXIT_LEFT : HAPTIC_COMMANDS.HWY_EXIT_RIGHT,
+      badge: isLeft ? '3× L' : '3× R',
+      side: isLeft ? 'left' : 'right',
+      msg: isLeft ? 'Highway exit left (3× L)' : 'Highway exit right (3× R)'
+    };
+  }
+
+  switch (step.modifier) {
+    case 'sharp left':
+      return { warnCmd: HAPTIC_COMMANDS.WARN_SHARP_LEFT, confirmCmd: HAPTIC_COMMANDS.SHARP_LEFT, badge: '2× L', side: 'left', msg: 'Sharp left (2× L)' };
+    case 'sharp right':
+      return { warnCmd: HAPTIC_COMMANDS.WARN_SHARP_RIGHT, confirmCmd: HAPTIC_COMMANDS.SHARP_RIGHT, badge: '2× R', side: 'right', msg: 'Sharp right (2× R)' };
+    case 'slight left':
+      return { warnCmd: HAPTIC_COMMANDS.WARN_LEFT, confirmCmd: HAPTIC_COMMANDS.SLIGHT_LEFT, badge: '1× L (Low)', side: 'left', msg: 'Slight left (Low L)' };
+    case 'slight right':
+      return { warnCmd: HAPTIC_COMMANDS.WARN_RIGHT, confirmCmd: HAPTIC_COMMANDS.SLIGHT_RIGHT, badge: '1× R (Low)', side: 'right', msg: 'Slight right (Low R)' };
+    case 'left':
+      return { warnCmd: HAPTIC_COMMANDS.WARN_LEFT, confirmCmd: HAPTIC_COMMANDS.LEFT, badge: '1× L', side: 'left', msg: 'Turn left (1× L)' };
+    case 'right':
+      return { warnCmd: HAPTIC_COMMANDS.WARN_RIGHT, confirmCmd: HAPTIC_COMMANDS.RIGHT, badge: '1× R', side: 'right', msg: 'Turn right (1× R)' };
+    case 'uturn':
+      return { warnCmd: HAPTIC_COMMANDS.WARN_UTURN, confirmCmd: HAPTIC_COMMANDS.UTURN, badge: '2× BOTH', side: 'both', msg: 'U-turn (2× Both)' };
+    default:
+      if (step.type === 'fork') {
+        const isLeft = (step.modifier || '').includes('left');
+        return isLeft
+          ? { warnCmd: HAPTIC_COMMANDS.WARN_LEFT, confirmCmd: HAPTIC_COMMANDS.SLIGHT_LEFT, badge: '1× L', side: 'left', msg: 'Keep left (Low L)' }
+          : { warnCmd: HAPTIC_COMMANDS.WARN_RIGHT, confirmCmd: HAPTIC_COMMANDS.SLIGHT_RIGHT, badge: '1× R', side: 'right', msg: 'Keep right (Low R)' };
+      }
+      return { warnCmd: null, confirmCmd: HAPTIC_COMMANDS.STRAIGHT, badge: '', side: 'none', msg: '' };
+  }
+}
+
+function getCommandSide(cmd) {
+  const leftCmds = new Set([0x01, 0x11, 0x21, 0x31, 0x51, 0x53]);
+  const rightCmds = new Set([0x02, 0x12, 0x22, 0x32, 0x41, 0x42, 0x43, 0x44, 0x52, 0x54, 0x56]);
+  if (leftCmds.has(cmd)) return 'left';
+  if (rightCmds.has(cmd)) return 'right';
+  if (cmd === 0x30 || cmd === 0x55 || cmd === 0xA0 || cmd === 0xB0) return 'both';
+  return 'none';
+}
+
+function triggerHapticVisual(cmd, labelText = '') {
+  const side = getCommandSide(cmd);
+  const leftEl = document.getElementById('haptic-edge-left');
+  const rightEl = document.getElementById('haptic-edge-right');
+  const hud = document.getElementById('haptic-hud');
+  const hudText = document.getElementById('haptic-hud-text');
+
+  [leftEl, rightEl].forEach(el => {
+    if (!el) return;
+    el.classList.remove('pulse-active');
+    void el.offsetWidth;
+  });
+
+  if (side === 'left' || side === 'both') leftEl?.classList.add('pulse-active');
+  if (side === 'right' || side === 'both') rightEl?.classList.add('pulse-active');
+
+  if (hud && hudText && labelText) {
+    hudText.textContent = labelText;
+    hud.classList.remove('hidden');
+    clearTimeout(HapNav.hapticHudTimer);
+    HapNav.hapticHudTimer = setTimeout(() => hud.classList.add('hidden'), 2400);
+  }
+}
+
+function triggerPhoneVibrate(cmd) {
+  if (!HapNav.settings.vibrateFallback || !HapNav.settings.haptic) return;
+  if (HapNav.bleCharacteristic || !('vibrate' in navigator)) return;
+
+  const patterns = {
+    [HAPTIC_COMMANDS.SLIGHT_LEFT]: [100],
+    [HAPTIC_COMMANDS.SLIGHT_RIGHT]: [100],
+    [HAPTIC_COMMANDS.LEFT]: [220],
+    [HAPTIC_COMMANDS.RIGHT]: [220],
+    [HAPTIC_COMMANDS.SHARP_LEFT]: [240, 90, 240],
+    [HAPTIC_COMMANDS.SHARP_RIGHT]: [240, 90, 240],
+    [HAPTIC_COMMANDS.UTURN]: [250, 90, 250],
+    [HAPTIC_COMMANDS.HWY_EXIT_LEFT]: [140, 70, 140, 70, 140],
+    [HAPTIC_COMMANDS.HWY_EXIT_RIGHT]: [140, 70, 140, 70, 140],
+    [HAPTIC_COMMANDS.WARN_LEFT]: [120],
+    [HAPTIC_COMMANDS.WARN_RIGHT]: [120],
+    [HAPTIC_COMMANDS.WARN_SHARP_LEFT]: [130, 70, 130],
+    [HAPTIC_COMMANDS.WARN_SHARP_RIGHT]: [130, 70, 130],
+    [HAPTIC_COMMANDS.WARN_UTURN]: [130, 70, 130],
+    [HAPTIC_COMMANDS.WARN_HWY]: [100, 60, 100, 60, 100],
+    [HAPTIC_COMMANDS.ARRIVED]: [300, 80, 300, 80, 300],
+    [HAPTIC_COMMANDS.REROUTE]: [150, 60, 150, 100, 150, 60, 150]
+  };
+  const pattern = patterns[cmd] || (cmd >= 0x41 && cmd <= 0x44 ? [180, 100, 180] : null);
+  if (pattern) {
+    try { navigator.vibrate(pattern); } catch (e) { /* ignore */ }
+  }
+}
+
+function updateTurnStageBadge(text, mode = '') {
+  const badge = document.getElementById('turn-stage-badge');
+  if (!badge) return;
+  badge.textContent = text;
+  badge.classList.remove('warn', 'now');
+  if (mode) badge.classList.add(mode);
+}
+
+function updateNextTurnPreview() {
+  const pill = document.getElementById('next-turn-pill');
+  const iconEl = document.getElementById('next-turn-icon');
+  const textEl = document.getElementById('next-turn-text');
+  if (!pill) return;
+
+  const nextStep = HapNav.routeSteps[HapNav.currentStepIndex + 1];
+  if (!nextStep) {
+    pill.classList.add('hidden');
+    return;
+  }
+
+  const icon = TURN_ICONS[nextStep.modifier] || TURN_ICONS[nextStep.type] || TURN_ICONS.default;
+  iconEl.textContent = icon;
+  textEl.textContent = `${nextStep.instruction} (${formatDistance(nextStep.distance)})`;
+  pill.classList.remove('hidden');
+}
+
 function announceCurrentStep(force = false) {
   const step = HapNav.routeSteps[HapNav.currentStepIndex];
   if (!step) return;
 
   const icon = TURN_ICONS[step.modifier] || TURN_ICONS[step.type] || TURN_ICONS.default;
+  const spec = getHapticSpecForStep(step);
   document.getElementById('turn-icon').textContent = icon;
   document.getElementById('turn-instruction').textContent = step.instruction;
   document.getElementById('turn-distance').textContent = formatDistance(step.distance);
+  updateTurnStageBadge('NEXT TURN');
+
+  const hapticBadge = document.getElementById('turn-haptic-badge');
+  if (hapticBadge) {
+    hapticBadge.textContent = spec.badge;
+    hapticBadge.classList.toggle('hidden', !spec.badge);
+  }
+
+  const proxFill = document.getElementById('turn-proximity-fill');
+  if (proxFill) proxFill.style.width = '0%';
+
+  updateNextTurnPreview();
+  updateTurnItineraryActive();
 
   if (force || HapNav.lastSpokenInstruction !== step.instruction) {
     speak(buildVoiceInstruction(step));
     HapNav.lastSpokenInstruction = step.instruction;
-        // REMOVED sendHapticForStep(step) from here! 
-        // We only want it to trigger exactly at the 80m mark, not when the step starts.
   }
 }
 
@@ -1144,84 +1577,85 @@ function buildVoiceInstruction(step) {
       return `Starting navigation. ${step.instruction}.`;
     case 'arrive':
       return 'You have arrived at your destination.';
+    case 'waypoint':
+      return `Approaching stop in ${distText}.`;
+    case 'roundabout':
+    case 'rotary': {
+      const exitPart = step.exit ? ` and take exit ${step.exit}` : '';
+      return `Enter the roundabout in ${distText}${exitPart}`;
+    }
     default:
       if (step.modifier === 'left') return `Turn left in ${distText}`;
       if (step.modifier === 'right') return `Turn right in ${distText}`;
+      if (step.modifier === 'sharp left') return `Sharp left in ${distText}`;
+      if (step.modifier === 'sharp right') return `Sharp right in ${distText}`;
       if (step.modifier === 'slight left') return `Slight left in ${distText}`;
       if (step.modifier === 'slight right') return `Slight right in ${distText}`;
       if (step.modifier === 'uturn') return `Make a U-turn in ${distText}`;
-      if (step.type === 'roundabout' || step.type === 'rotary') return `Enter the roundabout in ${distText}`;
       return `Continue straight for ${distText}`;
   }
 }
 
-function sendHapticForStep(step, distText) {
+function sendHapticForStage(step, stage, distText) {
   if (!HapNav.settings.haptic) return;
 
-  let cmd = HAPTIC_COMMANDS.STRAIGHT; // Default (no buzz)
-  let msg = '';
+  const spec = getHapticSpecForStep(step);
+  const cmd = stage === 'warn' ? spec.warnCmd : spec.confirmCmd;
 
-  if (step.modifier === 'sharp left') {
-    cmd = HAPTIC_COMMANDS.SHARP_LEFT;
-    msg = 'Left motor double-buzzed (High 85%)';
-  } else if (step.modifier === 'sharp right') {
-    cmd = HAPTIC_COMMANDS.SHARP_RIGHT;
-    msg = 'Right motor double-buzzed (High 85%)';
-  } else if (step.modifier === 'slight left') {
-    cmd = HAPTIC_COMMANDS.SLIGHT_LEFT;
-    msg = 'Left motor slightly buzzed (Low 30%)';
-  } else if (step.modifier === 'slight right') {
-    cmd = HAPTIC_COMMANDS.SLIGHT_RIGHT;
-    msg = 'Right motor slightly buzzed (Low 30%)';
-  } else if (step.modifier === 'left') {
-    cmd = HAPTIC_COMMANDS.LEFT;
-    msg = 'Left motor buzzed (Med 65%)';
-  } else if (step.modifier === 'right') {
-    cmd = HAPTIC_COMMANDS.RIGHT;
-    msg = 'Right motor buzzed (Med 65%)';
-  } else if (step.modifier === 'uturn') {
-    cmd = HAPTIC_COMMANDS.UTURN;
-    msg = 'Both motors double-buzzed (High 85%)';
-  }
+  if (!cmd || cmd === HAPTIC_COMMANDS.STRAIGHT) return;
 
-  // Only send a command to the helmet if an actual action is required
-  if (cmd !== HAPTIC_COMMANDS.STRAIGHT) {
-    sendHapticCommand(cmd);
-    if (distText) {
-      showToast(`Haptic: ${msg} at ${distText}`, 'info', 3000);
-    }
+  sendHapticCommand(cmd);
+  const stageLabel = stage === 'warn' ? 'PREPARE' : 'NOW';
+  const hudMsg = `${stageLabel}: ${spec.msg}${distText ? ' · ' + distText : ''}`;
+  triggerHapticVisual(cmd, hudMsg);
+
+  if (distText) {
+    showToast(`Haptic ${hudMsg}`, 'info', 2600);
   }
 }
 
-/* Advance turn-by-turn based on a moving point (live GPS or simulation) */
-function updateTurnInstructionFromPosition(lat, lng) {
+function updateTurnInstructionFromPosition(lat, lng, speedMs = 0) {
   const step = HapNav.routeSteps[HapNav.currentStepIndex];
   if (!step) return;
 
   const distToManeuver = haversineDistance(lat, lng, step.location[0], step.location[1]);
   document.getElementById('turn-distance').textContent = formatDistance(distToManeuver);
 
-  // Voice cues at thresholds
-  if (distToManeuver <= 110 && !step.voiceNearSent) {
+  // Proximity fill (100% as rider reaches 15m before maneuver)
+  const proxMax = Math.max(120, Math.min(400, step.distance || 200));
+  const proxPct = Math.max(0, Math.min(100, (1 - Math.max(0, distToManeuver - 15) / proxMax) * 100));
+  const proxFill = document.getElementById('turn-proximity-fill');
+  if (proxFill) proxFill.style.width = `${proxPct.toFixed(0)}%`;
+
+  // Speed-adaptive two-stage haptic distances
+  const warnDist = Math.max(80, Math.min(220, (speedMs || 0) * 6));
+  const confirmDist = Math.max(30, Math.min(65, (speedMs || 0) * 2.2));
+
+  // Voice cues
+  if (distToManeuver <= Math.max(110, warnDist + 20) && !step.voiceNearSent) {
     step.voiceNearSent = true;
-    speak(buildVoiceInstruction({ ...step, distance: 100 }));
+    speak(buildVoiceInstruction({ ...step, distance: Math.round(distToManeuver) }));
   }
 
-  // Exact 80m Haptic trigger (Preparation)
-  if (distToManeuver <= 80 && !step.hapticSent) {
+  // Stage 1: Early warning haptic (0x51–0x56)
+  if (distToManeuver <= warnDist && !step.hapticSent) {
     step.hapticSent = true;
-    sendHapticForStep(step, Math.round(distToManeuver) + 'm');
+    updateTurnStageBadge(`WARN · ${Math.round(distToManeuver)}m`, 'warn');
+    sendHapticForStage(step, 'warn', Math.round(distToManeuver) + 'm');
   }
 
-  // Immediate 30m Haptic trigger (Execution)
-  if (distToManeuver <= 30 && !step.hapticImmediateSent) {
-    step.hapticImmediateSent = true;
-    sendHapticForStep(step, Math.round(distToManeuver) + 'm');
-  }
-
-  if (distToManeuver <= 50 && !step.voiceSoonSent) {
+  if (distToManeuver <= Math.max(50, confirmDist + 15) && !step.voiceSoonSent) {
     step.voiceSoonSent = true;
-    speak(buildVoiceInstruction({ ...step, distance: 50 }));
+    speak(buildVoiceInstruction({ ...step, distance: Math.round(distToManeuver) }));
+  }
+
+  // Stage 2: Immediate turn confirmation haptic (skip arrive here; finishNavigation sends 0xA0)
+  if (distToManeuver <= confirmDist && !step.hapticImmediateSent) {
+    step.hapticImmediateSent = true;
+    updateTurnStageBadge(`NOW · ${Math.round(distToManeuver)}m`, 'now');
+    if (step.type !== 'arrive') {
+      sendHapticForStage(step, 'confirm', Math.round(distToManeuver) + 'm');
+    }
   }
 
   // Advance to next step
@@ -1229,6 +1663,9 @@ function updateTurnInstructionFromPosition(lat, lng) {
     if (step.type === 'arrive') {
       finishNavigation();
       return;
+    }
+    if (step.type === 'waypoint') {
+      showToast('Reached intermediate stop!', 'success', 3000);
     }
     HapNav.currentStepIndex = Math.min(HapNav.currentStepIndex + 1, HapNav.routeSteps.length - 1);
     HapNav.lastSpokenInstruction = null;
@@ -1239,6 +1676,7 @@ function updateTurnInstructionFromPosition(lat, lng) {
 function finishNavigation() {
   speak('You have arrived at your destination.');
   sendHapticCommand(HAPTIC_COMMANDS.ARRIVED);
+  triggerHapticVisual(HAPTIC_COMMANDS.ARRIVED, 'ARRIVED · Alternating L/R');
   setProgress(100);
   showToast('You have arrived!', 'success', 5000);
 
@@ -1254,16 +1692,18 @@ function checkRouteDeviation(lat, lng) {
 
   const threshold = 40; // meters
   const distToRoute = distanceToPolyline(lat, lng, HapNav.routeLine.getLatLngs());
-
   const banner = document.getElementById('offroute-banner');
 
   if (distToRoute > threshold) {
-    if (!HapNav.offRouteWarningActive) {
+    const now = Date.now();
+    if (!HapNav.offRouteWarningActive && now - HapNav.lastRerouteAt > 8000) {
       HapNav.offRouteWarningActive = true;
+      HapNav.lastRerouteAt = now;
       banner.classList.remove('hidden');
       speak('Recalculating route');
       showToast('You are off route. Recalculating…', 'warning');
-      sendHapticCommand(HAPTIC_COMMANDS.REROUTE); // Triggers the Wave Sweep
+      sendHapticCommand(HAPTIC_COMMANDS.REROUTE);
+      triggerHapticVisual(HAPTIC_COMMANDS.REROUTE, 'REROUTING · L→R Wave');
       recalculateRouteFromCurrentPosition(lat, lng);
     }
   } else {
@@ -1281,11 +1721,13 @@ async function recalculateRouteFromCurrentPosition(lat, lng) {
     HapNav.originCoords = { lat, lng, label: 'Current location' };
     placeOriginMarker(lat, lng);
 
-    const o = HapNav.originCoords, d = HapNav.destCoords;
-    const wpStr = HapNav.waypoints.filter(w => w !== null).map(w => `${w.lng},${w.lat}`).join(';');
+    const o = HapNav.originCoords;
+    const d = HapNav.destCoords;
+    const wpCoords = HapNav.waypoints.filter(w => w.coords !== null).map(w => w.coords);
+    const wpStr = wpCoords.map(w => `${w.lng},${w.lat}`).join(';');
     const coordsStr = wpStr ? `${o.lng},${o.lat};${wpStr};${d.lng},${d.lat}` : `${o.lng},${o.lat};${d.lng},${d.lat}`;
     const url = `${OSRM_BASE}/${coordsStr}?overview=full&geometries=geojson&steps=true&annotations=true&alternatives=3`;
-    
+
     const res = await fetch(url);
     if (!res.ok) throw new Error('OSRM error');
     const data = await res.json();
@@ -1295,15 +1737,10 @@ async function recalculateRouteFromCurrentPosition(lat, lng) {
     }
 
     HapNav.altRoutes = data.routes;
-    const route = HapNav.altRoutes[0];
-    HapNav.route = route;
-    renderRoute(route);
+    applySelectedRoute(HapNav.altRoutes[0]);
     renderAltRoutes();
-    buildRouteSteps(route);
-    updateRouteSummary(route);
-    placeTurnMarkers();
 
-    HapNav.currentStepIndex = 0;
+    HapNav.currentStepIndex = HapNav.routeSteps.length > 1 ? 1 : 0;
     HapNav.lastSpokenInstruction = null;
     announceCurrentStep(true);
 
@@ -1330,6 +1767,17 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function computeBearing(lat1, lon1, lat2, lon2) {
+  const toRad = deg => (deg * Math.PI) / 180;
+  const toDeg = rad => (rad * 180) / Math.PI;
+  const phi1 = toRad(lat1);
+  const phi2 = toRad(lat2);
+  const dLam = toRad(lon2 - lon1);
+  const y = Math.sin(dLam) * Math.cos(phi2);
+  const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLam);
+  return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
+
 function distanceToPolyline(lat, lng, latlngs) {
   let min = Infinity;
   for (let i = 0; i < latlngs.length - 1; i++) {
@@ -1340,7 +1788,6 @@ function distanceToPolyline(lat, lng, latlngs) {
 }
 
 function distanceToSegment(lat, lng, lat1, lng1, lat2, lng2) {
-  // Approximate using equirectangular projection for short segments
   const x = lng, y = lat;
   const x1 = lng1, y1 = lat1, x2 = lng2, y2 = lat2;
 
@@ -1358,9 +1805,8 @@ function distanceToSegment(lat, lng, lat1, lng1, lat2, lng2) {
 
 function remainingRouteDistance(lat, lng) {
   if (!HapNav.route) return 0;
-  const coords = HapNav.route.geometry.coordinates; // [lng, lat]
+  const coords = HapNav.route.geometry.coordinates;
 
-  // Find nearest segment index
   let nearestIdx = 0;
   let minDist = Infinity;
   for (let i = 0; i < coords.length - 1; i++) {
@@ -1368,7 +1814,6 @@ function remainingRouteDistance(lat, lng) {
     if (d < minDist) { minDist = d; nearestIdx = i; }
   }
 
-  // Sum distances from nearest point to end
   let remaining = haversineDistance(lat, lng, coords[nearestIdx + 1][1], coords[nearestIdx + 1][0]);
   for (let i = nearestIdx + 1; i < coords.length - 1; i++) {
     remaining += haversineDistance(coords[i][1], coords[i][0], coords[i + 1][1], coords[i + 1][0]);
@@ -1385,34 +1830,48 @@ function startSimulation() {
     return;
   }
   if (HapNav.isSimulating) return;
+  if (HapNav.isNavigating) stopNavigation();
 
   HapNav.isSimulating = true;
   HapNav.simRouteCoords = HapNav.route.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
   HapNav.simProgressIndex = 0;
-  if (HapNav.routeSteps.length > 1) HapNav.currentStepIndex = 1;
-  HapNav.routeSteps.forEach(s => { s.hapticSent = false; s.hapticImmediateSent = false; });
+  HapNav.currentStepIndex = HapNav.routeSteps.length > 1 ? 1 : 0;
+  resetStepAlertFlags();
   HapNav.lastSpokenInstruction = null;
+  setFollowRider(true);
 
   document.getElementById('sim-bar').classList.remove('hidden');
   document.getElementById('turn-card').classList.remove('hidden');
   document.getElementById('nav-bottombar').classList.remove('hidden');
   setNavStatus('Simulating');
 
-  const icon = L.divIcon({
+  if (HapNav.settings.rideFocus) {
+    setRideFocus(true);
+  }
+  requestWakeLock();
+
+  const initialBearing = HapNav.simRouteCoords.length > 1
+    ? computeBearing(
+        HapNav.simRouteCoords[0][0], HapNav.simRouteCoords[0][1],
+        HapNav.simRouteCoords[1][0], HapNav.simRouteCoords[1][1]
+      )
+    : 0;
+
+  const makeSimIcon = (deg) => L.divIcon({
     className: '',
-    html: '<div class="sim-marker"></div>',
-    iconSize: [16, 16],
-    iconAnchor: [8, 8]
+    html: `<div class="rider-arrow-wrap"><div class="rider-arrow-marker sim" style="transform: rotate(${Math.round(deg)}deg)"></div></div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14]
   });
+
   if (HapNav.simMarker) HapNav.simMarker.remove();
-  HapNav.simMarker = L.marker(HapNav.simRouteCoords[0], { icon, zIndexOffset: 900 }).addTo(HapNav.map);
+  HapNav.simMarker = L.marker(HapNav.simRouteCoords[0], { icon: makeSimIcon(initialBearing), zIndexOffset: 900 }).addTo(HapNav.map);
 
   announceCurrentStep(true);
+  updateTurnItineraryActive();
 
   const totalPoints = HapNav.simRouteCoords.length;
-  
-  // Slow down simulation to prevent flooding the ESP32 Bluetooth command queue.
-  const baseStepIntervalMs = Math.max(800, Math.min(2000, 60000 / totalPoints));
+  const baseStepIntervalMs = Math.max(800, Math.min(2000, 60000 / Math.max(1, totalPoints)));
 
   function simStep() {
     HapNav.simProgressIndex++;
@@ -1422,28 +1881,35 @@ function startSimulation() {
       return;
     }
 
+    const prevPt = HapNav.simRouteCoords[HapNav.simProgressIndex - 1];
     const [lat, lng] = HapNav.simRouteCoords[HapNav.simProgressIndex];
-    HapNav.simMarker.setLatLng([lat, lng]);
-    HapNav.map.panTo([lat, lng], { animate: true });
+    const bearing = computeBearing(prevPt[0], prevPt[1], lat, lng);
 
-    const pct = (HapNav.simProgressIndex / (totalPoints - 1)) * 100;
+    HapNav.simMarker.setLatLng([lat, lng]);
+    HapNav.simMarker.setIcon(makeSimIcon(bearing));
+
+    if (HapNav.followRider) {
+      HapNav.map.panTo([lat, lng], { animate: true });
+    }
+
+    const pct = (HapNav.simProgressIndex / Math.max(1, totalPoints - 1)) * 100;
     document.getElementById('sim-progress-fill').style.width = `${pct}%`;
     document.getElementById('sim-progress-text').textContent = `${pct.toFixed(0)}%`;
     setProgress(pct);
 
-    // Simulated speed (assume ~40 km/h average)
     const simSpeedKmh = 40 + Math.sin(HapNav.simProgressIndex / 6) * 10;
+    const simSpeedMs = Math.max(0, simSpeedKmh) / 3.6;
     document.getElementById('widget-speed').textContent = formatSpeed(Math.max(0, simSpeedKmh));
     document.getElementById('nbb-speed').textContent = formatSpeed(Math.max(0, simSpeedKmh));
 
     const remaining = HapNav.route.distance * (1 - pct / 100);
-    const eta = formatETA(remaining / (simSpeedKmh / 3.6));
+    const eta = formatETA(remaining / Math.max(1, simSpeedMs));
     document.getElementById('widget-eta').textContent = eta;
     document.getElementById('nbb-eta').textContent = eta;
     document.getElementById('widget-distance').textContent = formatDistance(remaining);
     document.getElementById('nbb-distance').textContent = formatDistance(remaining);
 
-    updateTurnInstructionFromPosition(lat, lng);
+    updateTurnInstructionFromPosition(lat, lng, simSpeedMs);
 
     const speedSelect = document.getElementById('sim-speed-select');
     const multiplier = speedSelect ? parseFloat(speedSelect.value) : 1;
@@ -1451,7 +1917,6 @@ function startSimulation() {
   }
 
   HapNav.simInterval = setTimeout(simStep, baseStepIntervalMs);
-
   showToast('Simulation started', 'info', 2000);
 }
 
@@ -1461,6 +1926,8 @@ function stopSimulation() {
 
   clearTimeout(HapNav.simInterval);
   HapNav.simInterval = null;
+  releaseWakeLock();
+  setFollowRider(true);
 
   if (HapNav.simMarker) { HapNav.simMarker.remove(); HapNav.simMarker = null; }
 
@@ -1471,6 +1938,9 @@ function stopSimulation() {
   if (!HapNav.isNavigating) {
     document.getElementById('turn-card').classList.add('hidden');
     document.getElementById('nav-bottombar').classList.add('hidden');
+    document.getElementById('nbb-recenter-btn').classList.add('hidden');
+    document.getElementById('recenter-fab').classList.add('hidden');
+    setRideFocus(false);
     setNavStatus('Idle');
   }
 
@@ -1514,6 +1984,7 @@ function toggleMute() {
 function updateMuteIcon() {
   const icon = document.getElementById('mute-icon');
   const btn = document.getElementById('mute-btn');
+  if (!icon || !btn) return;
   if (HapNav.speechMuted) {
     icon.innerHTML = '<path d="M11 5L6 9H2v6h4l5 4V5z" fill="currentColor"/><line x1="23" y1="9" x2="17" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="17" y1="9" x2="23" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>';
     btn.dataset.tip = 'Unmute voice';
@@ -1524,7 +1995,7 @@ function updateMuteIcon() {
 }
 
 /* =========================================================
-   HAPTIC HELMET — Web Bluetooth
+   HAPTIC HELMET — Web Bluetooth (Protocol Unchanged)
    ========================================================= */
 async function connectHapticHelmet() {
   if (!('bluetooth' in navigator)) {
@@ -1599,7 +2070,7 @@ function setBleStatus(state, label) {
 async function processBleQueue() {
   if (isBleWriting || bleWriteQueue.length === 0) return;
   isBleWriting = true;
-  
+
   const cmd = bleWriteQueue.shift();
   try {
     if (HapNav.bleCharacteristic) {
@@ -1609,22 +2080,27 @@ async function processBleQueue() {
   } catch (err) {
     console.error('BLE write error:', err);
   }
-  
+
   isBleWriting = false;
-  processBleQueue(); // Process next command instantly
+  processBleQueue();
 }
 
 async function sendHapticCommand(cmd, isTest = false) {
   if (!HapNav.settings.haptic && !isTest) return;
 
   HapNav.lastHapticCommand = cmd;
+  triggerPhoneVibrate(cmd);
+
+  if (isTest) {
+    const name = Object.entries(HAPTIC_COMMANDS).find(([, v]) => v === cmd)?.[0] || `0x${cmd.toString(16)}`;
+    triggerHapticVisual(cmd, `TEST: ${name}`);
+  }
 
   if (!HapNav.bleCharacteristic) {
-    if (isTest) showToast('Connect the HapticHelmet first.', 'warning');
+    if (isTest) showToast('Previewed cue (connect HapticHelmet for helmet motors).', 'info', 2200);
     return;
   }
 
-  // Queue the command to guarantee sequential execution and prevent GATT dropouts
   bleWriteQueue.push(cmd);
   processBleQueue();
 
@@ -1662,7 +2138,7 @@ function openSosModal() {
       msgEl.value = message;
       smsBtn.href = `sms:?body=${encodeURIComponent(message)}`;
     },
-    (err) => {
+    () => {
       locEl.textContent = 'Could not fetch live location. Permission may be denied.';
       msgEl.value = 'EMERGENCY: I need help, but my location could not be retrieved automatically.';
       smsBtn.href = `sms:?body=${encodeURIComponent(msgEl.value)}`;
@@ -1705,7 +2181,6 @@ async function toggleNearbyCategory(btn) {
   if (!HapNav.currentPosition) {
     showToast('Detecting your location first…', 'info', 2000);
     detectCurrentLocation({ silent: false, center: false });
-    // Give it a brief moment
     await new Promise(r => setTimeout(r, 1200));
     if (!HapNav.currentPosition) {
       showToast('Location needed to find nearby services.', 'warning');
@@ -1802,16 +2277,13 @@ function refreshNearbyList() {
       <span class="nearby-item-meta">${def.label} · ${formatDistance(dist)} away</span>
     `;
     li.addEventListener('click', () => {
+      setFollowRider(false);
       HapNav.map.setView([lat, lon], 16);
       marker.openPopup();
     });
     list.appendChild(li);
   });
 }
-
-/* =========================================================
-   AI OBSTACLE DETECTION — INTEGRATION HOOKS
-
 
 /* =========================================================
    ROUTE SHARING
@@ -1857,45 +2329,44 @@ function initServiceWorker() {
 /* =========================================================
    ADVANCED NAVIGATION FEATURES (Multi-stop, Favorites, 3D)
    ========================================================= */
-
-function addWaypointInput() {
+function addWaypointInput(initialCoords = null) {
   const container = document.getElementById('waypoints-container');
-  const index = HapNav.waypoints.length;
-  HapNav.waypoints.push(null);
-  
-  const div = document.createElement('div');
-  div.className = 'input-icon-row';
-  div.innerHTML = `
-    <span class="input-icon" style="background:var(--warning); box-shadow:0 0 6px var(--warning);"></span>
-    <input type="text" class="text-input" placeholder="Add stop..." autocomplete="off" aria-label="Waypoint" id="wp-input-${index}" />
-    <button class="ghost-btn" onclick="removeWaypoint(${index}, this.parentElement)" data-tip="Remove">×</button>
+  const wpId = ++HapNav.waypointSeq;
+  HapNav.waypoints.push({ id: wpId, coords: initialCoords });
+
+  const block = document.createElement('div');
+  block.className = 'waypoint-block';
+  block.id = `wp-row-${wpId}`;
+
+  const suggId = `wp-suggestions-${wpId}`;
+  block.innerHTML = `
+    <div class="input-icon-row">
+      <span class="input-icon" style="background:var(--warning); box-shadow:0 0 6px var(--warning);"></span>
+      <input type="text" class="text-input" placeholder="Add stop…" autocomplete="off" aria-label="Waypoint" id="wp-input-${wpId}" />
+      <button class="ghost-btn" type="button" data-tip="Remove">×</button>
+    </div>
+    <ul class="suggestions" id="${suggId}" role="listbox" hidden></ul>
   `;
-  container.appendChild(div);
-  
-  const input = div.querySelector('input');
-  // Simple autocomplete handling for waypoint (reusing origin suggestions container for simplicity)
-  input.addEventListener('input', () => {
-    HapNav.activeWaypointIndex = index;
-    handleAddressInput(input, 'destination-suggestions', 'waypoint');
-  });
-}
+  container.appendChild(block);
 
-function removeWaypoint(index, el) {
-  HapNav.waypoints[index] = null;
-  el.remove();
-}
-
-// Override selectAddress to support waypoints
-const originalSelectAddress = selectAddress;
-selectAddress = function(coords, role) {
-  if (role === 'waypoint') {
-    HapNav.waypoints[HapNav.activeWaypointIndex] = coords;
-    document.getElementById(`wp-input-${HapNav.activeWaypointIndex}`).value = coords.label.split(',')[0];
-    fitMapToMarkers(); // Update map bounds
-  } else {
-    originalSelectAddress(coords, role);
+  const input = block.querySelector('input');
+  const removeBtn = block.querySelector('button');
+  if (initialCoords) {
+    input.value = initialCoords.label.split(',')[0];
   }
-};
+
+  input.addEventListener('input', () => {
+    handleAddressInput(input, suggId, 'waypoint', wpId);
+  });
+
+  removeBtn.addEventListener('click', () => removeWaypoint(wpId, block));
+}
+
+function removeWaypoint(wpId, el) {
+  HapNav.waypoints = HapNav.waypoints.filter(w => w.id !== wpId);
+  if (el) el.remove();
+  placeWaypointMarkers();
+}
 
 function renderAltRoutes() {
   const container = document.getElementById('alt-routes');
@@ -1904,13 +2375,12 @@ function renderAltRoutes() {
     container.classList.add('hidden');
     return;
   }
-  
+
   container.classList.remove('hidden');
   HapNav.altRoutes.forEach((route, index) => {
     const btn = document.createElement('button');
     btn.className = `alt-route-tab ${index === 0 ? 'active' : ''}`;
-    const duration = formatETA(route.duration);
-    btn.innerHTML = `Route ${index + 1}<br><span style="font-size:0.65rem;font-weight:normal">${duration}</span>`;
+    btn.innerHTML = `Route ${index + 1}<br><span style="font-size:0.65rem;font-weight:normal">${formatDuration(route.duration)} · ${formatDistance(route.distance)}</span>`;
     btn.onclick = () => selectAltRoute(index, btn);
     container.appendChild(btn);
   });
@@ -1919,16 +2389,14 @@ function renderAltRoutes() {
 function selectAltRoute(index, btnEl) {
   document.querySelectorAll('.alt-route-tab').forEach(b => b.classList.remove('active'));
   btnEl.classList.add('active');
-  HapNav.route = HapNav.altRoutes[index];
-  renderRoute(HapNav.route);
+  applySelectedRoute(HapNav.altRoutes[index]);
 }
 
 function toggle3DPitch() {
   const mapEl = document.getElementById('map');
   mapEl.classList.toggle('map-3d-pitch');
   const is3D = mapEl.classList.contains('map-3d-pitch');
-  
-  // Slight pan to offset the center when tilted
+
   if (HapNav.currentLocationMarker) {
     HapNav.map.panTo(HapNav.currentLocationMarker.getLatLng(), { animate: true });
   }
@@ -1942,15 +2410,15 @@ function saveCurrentRouteToFavorites() {
   }
   const name = prompt('Enter a name for this route (e.g., Home to Work):', 'My Route');
   if (!name) return;
-  
+
   const routeObj = {
     id: Date.now(),
     name,
     origin: HapNav.originCoords,
     dest: HapNav.destCoords,
-    waypoints: HapNav.waypoints.filter(w => w !== null)
+    waypoints: HapNav.waypoints.filter(w => w.coords !== null).map(w => w.coords)
   };
-  
+
   HapNav.favorites.push(routeObj);
   localStorage.setItem('hapnav_favorites', JSON.stringify(HapNav.favorites));
   renderFavoritesList();
@@ -1962,19 +2430,19 @@ function loadFavorites() {
     const saved = JSON.parse(localStorage.getItem('hapnav_favorites') || '[]');
     HapNav.favorites = saved;
     renderFavoritesList();
-  } catch(e) {}
+  } catch (e) { /* ignore */ }
 }
 
 function renderFavoritesList() {
   const ul = document.getElementById('favorites-list');
   if (!ul) return;
   ul.innerHTML = '';
-  
+
   if (!HapNav.favorites.length) {
     ul.innerHTML = '<li class="favorites-empty" style="font-size:0.8rem; color:var(--text-faint);">No saved routes yet.</li>';
     return;
   }
-  
+
   HapNav.favorites.forEach(fav => {
     const li = document.createElement('li');
     li.className = 'favorite-item';
@@ -1992,25 +2460,20 @@ function renderFavoritesList() {
 function loadFavoriteRoute(id) {
   const fav = HapNav.favorites.find(f => f.id === id);
   if (!fav) return;
-  
-  // Clear existing waypoints
+
   document.getElementById('waypoints-container').innerHTML = '';
   HapNav.waypoints = [];
-  
-  // Set origin and dest
+
   selectAddress(fav.origin, 'origin');
   selectAddress(fav.dest, 'destination');
-  
-  // Set waypoints
+
   if (fav.waypoints && fav.waypoints.length > 0) {
-    fav.waypoints.forEach(wp => {
-      addWaypointInput();
-      const index = HapNav.waypoints.length - 1;
-      HapNav.activeWaypointIndex = index;
-      selectAddress(wp, 'waypoint');
+    fav.waypoints.forEach(wpCoords => {
+      if (wpCoords) addWaypointInput(wpCoords);
     });
+    placeWaypointMarkers();
   }
-  
+
   showToast(`Loaded ${fav.name}`, 'info');
   findRoute();
 }

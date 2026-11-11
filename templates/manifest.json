@@ -1,0 +1,18 @@
+{
+  "name": "HapNav V2 — Smart Haptic Navigation",
+  "short_name": "HapNav V2",
+  "description": "Turn-by-turn GPS, voice guidance, and haptic helmet navigation for riders.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#050505",
+  "theme_color": "#050505",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'><rect width='128' height='128' rx='28' fill='%23050505'/><circle cx='64' cy='64' r='44' fill='none' stroke='%2300D4FF' stroke-width='7'/><path d='M64 26 L84 64 L64 102 L44 64 Z' fill='%2300D4FF'/></svg>",
+      "sizes": "128x128",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

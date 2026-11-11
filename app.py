@@ -11,8 +11,14 @@ ORS_API_KEY = os.environ.get('ORS_API_KEY')
 def index():
     return render_template('index.html')
 
+@app.route('/health')
+def health():
+    return jsonify({"status": "ok", "ors_configured": bool(ORS_API_KEY)})
+
 # ── Geocode ────────────────────────────────────────────────────
 def geocode(place):
+    if not place:
+        return None
     parts = place.split(',')
     if len(parts) == 2:
         try:
@@ -21,29 +27,39 @@ def geocode(place):
             return [lng, lat]
         except ValueError:
             pass
-    url    = "https://api.openrouteservice.org/geocode/search"
-    params = {"api_key": ORS_API_KEY, "text": place, "size": 1}
-    r      = requests.get(url, params=params)
-    feats  = r.json().get('features', [])
-    if not feats:
+    if not ORS_API_KEY:
         return None
-    return feats[0]['geometry']['coordinates']
+    try:
+        url    = "https://api.openrouteservice.org/geocode/search"
+        params = {"api_key": ORS_API_KEY, "text": place, "size": 1}
+        r      = requests.get(url, params=params, timeout=10)
+        r.raise_for_status()
+        feats  = r.json().get('features', [])
+        if not feats:
+            return None
+        return feats[0]['geometry']['coordinates']
+    except requests.RequestException:
+        return None
 
 # ── Autocomplete ───────────────────────────────────────────────
 @app.route('/autocomplete')
 def autocomplete():
-    q = request.args.get('q', '')
-    if len(q) < 3:
+    q = request.args.get('q', '').strip()
+    if len(q) < 3 or not ORS_API_KEY:
         return jsonify([])
-    url    = "https://api.openrouteservice.org/geocode/autocomplete"
-    params = {"api_key": ORS_API_KEY, "text": q, "size": 6}
-    r      = requests.get(url, params=params)
-    feats  = r.json().get('features', [])
-    return jsonify([{
-        "label": f['properties'].get('label', ''),
-        "lat":   f['geometry']['coordinates'][1],
-        "lng":   f['geometry']['coordinates'][0]
-    } for f in feats])
+    try:
+        url    = "https://api.openrouteservice.org/geocode/autocomplete"
+        params = {"api_key": ORS_API_KEY, "text": q, "size": 6}
+        r      = requests.get(url, params=params, timeout=10)
+        r.raise_for_status()
+        feats  = r.json().get('features', [])
+        return jsonify([{
+            "label": f['properties'].get('label', ''),
+            "lat":   f['geometry']['coordinates'][1],
+            "lng":   f['geometry']['coordinates'][0]
+        } for f in feats])
+    except requests.RequestException as exc:
+        return jsonify({"error": f"Autocomplete failed: {exc}"}), 502
 
 # ── ORS maneuver type → haptic command code ────────────────────
 # Two-stage system: each turn returns a (warn_cmd, confirm_cmd) pair
@@ -74,9 +90,12 @@ def ors_to_cmds(step_type, exit_number=1):
 # ── Route ──────────────────────────────────────────────────────
 @app.route('/route', methods=['POST'])
 def get_route():
-    data        = request.json
+    data        = request.get_json(silent=True) or {}
     origin      = data.get('origin')
     destination = data.get('destination')
+
+    if not ORS_API_KEY:
+        return jsonify({"error": "ORS_API_KEY is not configured"}), 503
 
     orig_coords = geocode(origin)
     dest_coords = geocode(destination)
@@ -90,7 +109,10 @@ def get_route():
         "instructions": True,
         "geometry":     True
     }
-    resp = requests.post(url, json=body, headers=headers)
+    try:
+        resp = requests.post(url, json=body, headers=headers, timeout=15)
+    except requests.RequestException as exc:
+        return jsonify({"error": f"Routing service unavailable: {exc}"}), 502
     if resp.status_code != 200:
         return jsonify({"error": resp.text}), 400
 
