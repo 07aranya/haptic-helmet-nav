@@ -185,11 +185,13 @@ function boot() {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       initMap();
+      initSidebarTabs();
       initEventListeners();
       initServiceWorker();
       loadSettingsFromState();
       checkNetworkStatus();
       initKeyboardShortcuts();
+      if (isMobileViewport()) setRideFocus(false);
 
       loadingScreen.classList.add('fade-out');
       setTimeout(() => loadingScreen.classList.add('hidden'), 650);
@@ -311,10 +313,18 @@ function initEventListeners() {
   document.getElementById('simulate-btn').addEventListener('click', startSimulation);
   document.getElementById('sim-stop-btn').addEventListener('click', stopSimulation);
 
-  // Cockpit recenter & itinerary controls
+  // Cockpit recenter, voice & itinerary controls
   document.getElementById('nbb-recenter-btn').addEventListener('click', recenterOnRider);
   document.getElementById('recenter-fab').addEventListener('click', recenterOnRider);
-  document.getElementById('nbb-itinerary-btn').addEventListener('click', toggleSidebar);
+  document.getElementById('nbb-voice-btn').addEventListener('click', toggleMute);
+  document.getElementById('nbb-itinerary-btn').addEventListener('click', () => {
+    switchSidebarTab('route');
+    toggleSidebar();
+  });
+  document.getElementById('pill-ble').addEventListener('click', () => {
+    switchSidebarTab('helmet');
+    setRideFocus(false);
+  });
 
   // Voice mute
   document.getElementById('mute-btn').addEventListener('click', toggleMute);
@@ -438,6 +448,23 @@ function showToast(message, type = 'info', duration = 3400) {
 
 function isMobileViewport() {
   return window.matchMedia('(max-width: 980px)').matches;
+}
+
+function initSidebarTabs() {
+  document.querySelectorAll('.sidebar-tab').forEach(tab => {
+    tab.addEventListener('click', () => switchSidebarTab(tab.dataset.tab));
+  });
+}
+
+function switchSidebarTab(tabName) {
+  document.querySelectorAll('.sidebar-tab').forEach(tab => {
+    const active = tab.dataset.tab === tabName;
+    tab.classList.toggle('active', active);
+    tab.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  document.querySelectorAll('.tab-panel').forEach(panel => {
+    panel.classList.toggle('active', panel.dataset.panel === tabName);
+  });
 }
 
 function setRideFocus(enabled) {
@@ -808,6 +835,8 @@ function formatSpeed(kmh) {
 function setProgress(pct) {
   document.getElementById('widget-progress-fill').style.width = `${pct}%`;
   document.getElementById('widget-progress-pct').textContent = `${pct.toFixed(0)}%`;
+  const nbbFill = document.getElementById('nbb-progress-fill');
+  if (nbbFill) nbbFill.style.width = `${pct}%`;
 }
 
 /* =========================================================
@@ -1463,6 +1492,8 @@ function triggerHapticVisual(cmd, labelText = '') {
   const side = getCommandSide(cmd);
   const leftEl = document.getElementById('haptic-edge-left');
   const rightEl = document.getElementById('haptic-edge-right');
+  const helmetLeft = document.getElementById('helmet-vis-left');
+  const helmetRight = document.getElementById('helmet-vis-right');
   const hud = document.getElementById('haptic-hud');
   const hudText = document.getElementById('haptic-hud-text');
 
@@ -1475,11 +1506,18 @@ function triggerHapticVisual(cmd, labelText = '') {
   if (side === 'left' || side === 'both') leftEl?.classList.add('pulse-active');
   if (side === 'right' || side === 'both') rightEl?.classList.add('pulse-active');
 
+  helmetLeft?.classList.toggle('active', side === 'left' || side === 'both');
+  helmetRight?.classList.toggle('active', side === 'right' || side === 'both');
+
   if (hud && hudText && labelText) {
     hudText.textContent = labelText;
     hud.classList.remove('hidden');
     clearTimeout(HapNav.hapticHudTimer);
-    HapNav.hapticHudTimer = setTimeout(() => hud.classList.add('hidden'), 2400);
+    HapNav.hapticHudTimer = setTimeout(() => {
+      hud.classList.add('hidden');
+      helmetLeft?.classList.remove('active');
+      helmetRight?.classList.remove('active');
+    }, 2400);
   }
 }
 
@@ -1514,10 +1552,16 @@ function triggerPhoneVibrate(cmd) {
 
 function updateTurnStageBadge(text, mode = '') {
   const badge = document.getElementById('turn-stage-badge');
-  if (!badge) return;
-  badge.textContent = text;
-  badge.classList.remove('warn', 'now');
-  if (mode) badge.classList.add(mode);
+  const card = document.getElementById('turn-card-surface');
+  if (badge) {
+    badge.textContent = text;
+    badge.classList.remove('warn', 'now');
+    if (mode) badge.classList.add(mode);
+  }
+  if (card) {
+    if (mode) card.setAttribute('data-stage', mode);
+    else card.removeAttribute('data-stage');
+  }
 }
 
 function updateNextTurnPreview() {
@@ -1982,15 +2026,23 @@ function toggleMute() {
 }
 
 function updateMuteIcon() {
+  const mutedSvg = '<path d="M11 5L6 9H2v6h4l5 4V5z" fill="currentColor"/><line x1="23" y1="9" x2="17" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="17" y1="9" x2="23" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>';
+  const unmutedSvg = '<path d="M11 5L6 9H2v6h4l5 4V5z" fill="currentColor"/><path d="M16 8a5 5 0 010 8M19 5a8 8 0 010 14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>';
+  const svg = HapNav.speechMuted ? mutedSvg : unmutedSvg;
+  const tip = HapNav.speechMuted ? 'Unmute voice' : 'Mute voice';
+
   const icon = document.getElementById('mute-icon');
   const btn = document.getElementById('mute-btn');
-  if (!icon || !btn) return;
-  if (HapNav.speechMuted) {
-    icon.innerHTML = '<path d="M11 5L6 9H2v6h4l5 4V5z" fill="currentColor"/><line x1="23" y1="9" x2="17" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="17" y1="9" x2="23" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>';
-    btn.dataset.tip = 'Unmute voice';
-  } else {
-    icon.innerHTML = '<path d="M11 5L6 9H2v6h4l5 4V5z" fill="currentColor"/><path d="M16 8a5 5 0 010 8M19 5a8 8 0 010 14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>';
-    btn.dataset.tip = 'Mute voice';
+  if (icon && btn) {
+    icon.innerHTML = svg;
+    btn.dataset.tip = tip;
+  }
+
+  const nbbIcon = document.getElementById('nbb-voice-icon');
+  const nbbBtn = document.getElementById('nbb-voice-btn');
+  if (nbbIcon && nbbBtn) {
+    nbbIcon.innerHTML = svg;
+    nbbBtn.dataset.tip = tip;
   }
 }
 
@@ -2259,7 +2311,7 @@ function refreshNearbyList() {
   list.innerHTML = '';
 
   if (!HapNav.nearbyMarkers.length) {
-    list.innerHTML = '<li class="nearby-empty">Select a category to find nearby places around your location.</li>';
+    list.innerHTML = '<li class="nearby-empty">Select a category above to scan nearby pit stops.</li>';
     return;
   }
 
@@ -2273,14 +2325,47 @@ function refreshNearbyList() {
     const li = document.createElement('li');
     li.className = 'nearby-item';
     li.innerHTML = `
-      <span class="nearby-item-name">${def.icon} ${escapeHtml(name)}</span>
-      <span class="nearby-item-meta">${def.label} · ${formatDistance(dist)} away</span>
+      <div>
+        <div class="nearby-item-name">${def.icon} ${escapeHtml(name)}</div>
+        <div class="nearby-item-meta">${def.label} · ${formatDistance(dist)} away</div>
+      </div>
+      <div class="nearby-item-actions">
+        <button type="button" class="nearby-action-btn primary">Route here</button>
+        <button type="button" class="nearby-action-btn">+ Pit Stop</button>
+      </div>
     `;
-    li.addEventListener('click', () => {
+
+    li.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
       setFollowRider(false);
       HapNav.map.setView([lat, lon], 16);
       marker.openPopup();
     });
+
+    const [routeBtn, stopBtn] = li.querySelectorAll('.nearby-action-btn');
+    routeBtn.addEventListener('click', () => {
+      if (!HapNav.originCoords && HapNav.currentPosition) {
+        HapNav.originCoords = {
+          lat: HapNav.currentPosition.lat,
+          lng: HapNav.currentPosition.lng,
+          label: 'Current location'
+        };
+        document.getElementById('origin-input').value = 'Current location';
+        placeOriginMarker(HapNav.originCoords.lat, HapNav.originCoords.lng);
+      }
+      selectAddress({ lat, lng: lon, label: name }, 'destination');
+      switchSidebarTab('route');
+      findRoute();
+    });
+
+    stopBtn.addEventListener('click', () => {
+      addWaypointInput({ lat, lng: lon, label: name });
+      placeWaypointMarkers();
+      switchSidebarTab('route');
+      showToast(`Added ${name} as pit stop`, 'success', 2200);
+      if (HapNav.originCoords && HapNav.destCoords) findRoute();
+    });
+
     list.appendChild(li);
   });
 }

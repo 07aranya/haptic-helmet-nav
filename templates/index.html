@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover" />
-  <title>HapNav V2 — Smart Haptic Navigation</title>
+  <title>HapNav V2 — Rider Haptic Cockpit</title>
   <meta name="description" content="Smart Haptic Navigation System — real-time GPS, voice guidance, and haptic helmet integration." />
-  <meta name="theme-color" content="#050505" />
+  <meta name="theme-color" content="#070A10" />
 
   <!-- PWA -->
   <link rel="manifest" href="manifest.json" />
@@ -14,7 +14,7 @@
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
 
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -26,13 +26,13 @@
   <div id="loading-screen" class="loading-screen" role="status" aria-live="polite">
     <div class="loading-content">
       <div class="loading-logo">
-        <svg viewBox="0 0 64 64" width="64" height="64" aria-hidden="true">
+        <svg viewBox="0 0 64 64" width="68" height="68" aria-hidden="true">
           <circle cx="32" cy="32" r="28" fill="none" stroke="var(--primary)" stroke-width="3" stroke-dasharray="20 8"/>
-          <path d="M32 14 L42 32 L32 50 L22 32 Z" fill="var(--primary)" opacity="0.85"/>
+          <path d="M32 14 L42 32 L32 50 L22 32 Z" fill="var(--primary)" opacity="0.9"/>
         </svg>
       </div>
-      <h1 class="loading-title">HapNav<span class="accent">V2</span></h1>
-      <p class="loading-subtitle">Smart Haptic Navigation System</p>
+      <h1 class="loading-title">HapNav <span class="accent">V2</span></h1>
+      <p class="loading-subtitle">Rider Haptic Navigation Cockpit</p>
       <div class="loading-bar"><div class="loading-bar-fill"></div></div>
       <p class="loading-status" id="loading-status">Initializing modules…</p>
     </div>
@@ -58,6 +58,7 @@
             </svg>
           </span>
           <span class="brand-name">HapNav <span class="accent">V2</span></span>
+          <span class="brand-badge">RIDE</span>
         </div>
       </div>
 
@@ -68,288 +69,345 @@
             <span class="pill-dot" aria-hidden="true"></span>
             <span class="pill-label">GPS</span>
           </div>
-          <div class="pill" id="pill-ble" data-tip="Haptic Helmet">
+          <button type="button" class="pill pill-btn" id="pill-ble" data-tip="Haptic Helmet (click to open)">
             <span class="pill-dot" aria-hidden="true"></span>
-            <span class="pill-label">BLE</span>
-          </div>
+            <span class="pill-label">Helmet</span>
+          </button>
           <div class="pill" id="pill-net" data-tip="Network">
             <span class="pill-dot" aria-hidden="true"></span>
             <span class="pill-label">Online</span>
           </div>
         </div>
 
-        <button class="icon-btn" id="theme-toggle" aria-label="Switch theme" data-tip="Theme">
+        <button class="icon-btn" id="theme-toggle" aria-label="Switch theme" data-tip="Day / Night mode">
           <svg id="theme-icon" viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor"/></svg>
         </button>
 
         <button class="icon-btn danger-btn" id="sos-btn" aria-label="Emergency SOS" data-tip="Emergency SOS">
-          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 2 L2 22 L22 22 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><line x1="12" y1="9" x2="12" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17.5" r="1" fill="currentColor"/></svg>
+          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 2 L2 22 L22 22 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><line x1="12" y1="9" x2="12" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17.5" r="1" fill="currentColor"/></svg>
           <span class="btn-text">SOS</span>
         </button>
       </div>
     </header>
 
-    <!-- ============ SIDEBAR ============ -->
-    <aside class="sidebar" id="sidebar" aria-label="Navigation panel">
+    <!-- ============ SIDEBAR (TABBED RIDER DRAWER) ============ -->
+    <aside class="sidebar" id="sidebar" aria-label="Rider drawer">
 
-      <!-- Search / Route Planner -->
-      <section class="panel route-panel">
-        <h2 class="panel-title">Plan a route</h2>
+      <!-- Segmented Navigation Tabs -->
+      <nav class="sidebar-tabs" role="tablist" aria-label="Rider sections">
+        <button type="button" class="sidebar-tab active" role="tab" aria-selected="true" data-tab="route">
+          <span class="tab-icon" aria-hidden="true">🧭</span>
+          <span>Route</span>
+        </button>
+        <button type="button" class="sidebar-tab" role="tab" aria-selected="false" data-tab="helmet">
+          <span class="tab-icon" aria-hidden="true">🪖</span>
+          <span>Helmet</span>
+        </button>
+        <button type="button" class="sidebar-tab" role="tab" aria-selected="false" data-tab="stops">
+          <span class="tab-icon" aria-hidden="true">⛽</span>
+          <span>Pit Stops</span>
+        </button>
+        <button type="button" class="sidebar-tab" role="tab" aria-selected="false" data-tab="setup">
+          <span class="tab-icon" aria-hidden="true">⚙️</span>
+          <span>Setup</span>
+        </button>
+      </nav>
 
-        <div class="input-group">
-          <div class="input-icon-row">
-            <span class="input-icon origin-dot" aria-hidden="true"></span>
-            <input type="text" id="origin-input" class="text-input" placeholder="Choose starting point" autocomplete="off" aria-label="Origin" />
-            <button class="ghost-btn" id="use-current-location" data-tip="Use current location">
-              <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <!-- ======== TAB 1: ROUTE & ITINERARY ======== -->
+      <div class="tab-panel active" data-panel="route">
+        <section class="panel route-panel">
+          <div class="panel-head-row">
+            <h2 class="panel-title">Plan ride</h2>
+            <span class="panel-kicker">OSRM · Multi-stop</span>
+          </div>
+
+          <div class="input-group">
+            <div class="input-icon-row">
+              <span class="input-icon origin-dot" aria-hidden="true"></span>
+              <input type="text" id="origin-input" class="text-input" placeholder="Starting point" autocomplete="off" aria-label="Origin" />
+              <button class="ghost-btn" id="use-current-location" type="button" data-tip="Use current GPS">
+                <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              </button>
+            </div>
+            <ul class="suggestions" id="origin-suggestions" role="listbox" hidden></ul>
+
+            <button class="swap-btn" id="swap-locations" type="button" aria-label="Swap origin and destination" data-tip="Swap">
+              <svg viewBox="0 0 24 24" width="16" height="16"><path d="M7 10l5-5 5 5M12 5v14M17 14l-5 5-5-5M12 19V5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+
+            <div id="waypoints-container" class="waypoints-container"></div>
+            <button class="btn btn-ghost btn-small add-stop-btn" id="add-stop-btn" type="button">+ Add Pit Stop</button>
+
+            <div class="input-icon-row">
+              <span class="input-icon dest-dot" aria-hidden="true"></span>
+              <input type="text" id="destination-input" class="text-input" placeholder="Destination" autocomplete="off" aria-label="Destination" />
+            </div>
+            <ul class="suggestions" id="destination-suggestions" role="listbox" hidden></ul>
+          </div>
+
+          <div class="route-actions">
+            <button class="btn btn-primary" id="find-route-btn" type="button">
+              <svg viewBox="0 0 24 24" width="18" height="18"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Find route
+            </button>
+            <button class="btn btn-ghost" id="clear-route-btn" type="button">Clear</button>
+          </div>
+
+          <!-- Alternative Routes -->
+          <div class="alt-routes hidden" id="alt-routes"></div>
+
+          <!-- Route summary -->
+          <div class="route-summary hidden" id="route-summary">
+            <div class="summary-stat">
+              <span class="summary-value" id="summary-distance">—</span>
+              <span class="summary-label">Distance</span>
+            </div>
+            <div class="summary-stat">
+              <span class="summary-value" id="summary-eta">—</span>
+              <span class="summary-label">ETA</span>
+            </div>
+            <div class="summary-stat">
+              <span class="summary-value" id="summary-duration">—</span>
+              <span class="summary-label">Duration</span>
+            </div>
+            <div class="summary-stat">
+              <span class="summary-value" id="summary-turns">—</span>
+              <span class="summary-label">Turns</span>
+            </div>
+          </div>
+
+          <div class="route-controls hidden" id="route-controls">
+            <button class="btn btn-ghost" id="save-route-btn" type="button" aria-label="Save route" data-tip="Save to Favorites" style="padding: 0 12px; flex: 0 0 auto;">
+              <svg viewBox="0 0 24 24" width="18" height="18"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="btn btn-success btn-ride-cta" id="start-navigation-btn" type="button">
+              <svg viewBox="0 0 24 24" width="18" height="18"><path d="M5 3l14 9-14 9V3z" fill="currentColor"/></svg>
+              Start Ride
+            </button>
+            <button class="btn btn-secondary" id="simulate-btn" type="button">
+              <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 9l5 3-5 3V9z" fill="currentColor"/></svg>
+              Sim
             </button>
           </div>
-          <ul class="suggestions" id="origin-suggestions" role="listbox" hidden></ul>
+        </section>
 
-          <button class="swap-btn" id="swap-locations" aria-label="Swap origin and destination" data-tip="Swap">
-            <svg viewBox="0 0 24 24" width="16" height="16"><path d="M7 10l5-5 5 5M12 5v14M17 14l-5 5-5-5M12 19V5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-
-          <div id="waypoints-container" class="waypoints-container"></div>
-          <button class="btn btn-ghost btn-small" id="add-stop-btn" style="align-self: flex-start; padding: 4px 10px; font-size: 0.75rem; margin-bottom: 4px;">+ Add Stop</button>
-
-          <div class="input-icon-row">
-            <span class="input-icon dest-dot" aria-hidden="true"></span>
-            <input type="text" id="destination-input" class="text-input" placeholder="Choose destination" autocomplete="off" aria-label="Destination" />
+        <!-- Turn-by-Turn Itinerary -->
+        <section class="panel turns-panel hidden" id="turns-panel">
+          <div class="turns-panel-head">
+            <h2 class="panel-title" style="margin:0;">Turn itinerary</h2>
+            <span class="turns-count" id="turns-count">0 turns</span>
           </div>
-          <ul class="suggestions" id="destination-suggestions" role="listbox" hidden></ul>
-        </div>
+          <ul class="turns-list" id="turns-list"></ul>
+        </section>
 
-        <div class="route-actions">
-          <button class="btn btn-primary" id="find-route-btn">
-            <svg viewBox="0 0 24 24" width="18" height="18"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            Find route
-          </button>
-          <button class="btn btn-ghost" id="clear-route-btn">Clear</button>
-        </div>
+        <!-- Favorite Routes -->
+        <section class="panel favorites-panel">
+          <h2 class="panel-title">Saved rides</h2>
+          <ul class="favorites-list" id="favorites-list">
+            <li class="favorites-empty">No saved routes yet. Plan a ride and bookmark it for one-tap launch.</li>
+          </ul>
+        </section>
+      </div>
 
-        <!-- Alternative Routes -->
-        <div class="alt-routes hidden" id="alt-routes"></div>
-
-        <!-- Route summary -->
-        <div class="route-summary hidden" id="route-summary">
-          <div class="summary-stat">
-            <span class="summary-value" id="summary-distance">—</span>
-            <span class="summary-label">Distance</span>
+      <!-- ======== TAB 2: HAPTIC HELMET & TELEMETRY ======== -->
+      <div class="tab-panel" data-panel="helmet">
+        <!-- Haptic Helmet Panel -->
+        <section class="panel ble-panel">
+          <div class="panel-head-row">
+            <h2 class="panel-title">Haptic helmet</h2>
+            <span class="panel-kicker">ESP32 · Web BLE</span>
           </div>
-          <div class="summary-stat">
-            <span class="summary-value" id="summary-eta">—</span>
-            <span class="summary-label">ETA</span>
-          </div>
-          <div class="summary-stat">
-            <span class="summary-value" id="summary-duration">—</span>
-            <span class="summary-label">Duration</span>
-          </div>
-          <div class="summary-stat">
-            <span class="summary-value" id="summary-turns">—</span>
-            <span class="summary-label">Turns</span>
-          </div>
-        </div>
+          <p class="panel-desc">Pair your HapticHelmet over Bluetooth LE for two-stage left/right vibration cues.</p>
 
-        <div class="route-controls hidden" id="route-controls">
-          <button class="btn btn-ghost" id="save-route-btn" aria-label="Save route" data-tip="Save to Favorites" style="padding: 0 12px; flex: 0 0 auto;">
-            <svg viewBox="0 0 24 24" width="18" height="18"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
-          </button>
-          <button class="btn btn-success" id="start-navigation-btn">
-            <svg viewBox="0 0 24 24" width="18" height="18"><path d="M5 3l14 9-14 9V3z" fill="currentColor"/></svg>
-            Start ride
-          </button>
-          <button class="btn btn-secondary" id="simulate-btn">
-            <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 9l5 3-5 3V9z" fill="currentColor"/></svg>
-            Simulate
-          </button>
-        </div>
-      </section>
-
-      <!-- Turn-by-Turn Itinerary -->
-      <section class="panel turns-panel hidden" id="turns-panel">
-        <div class="turns-panel-head">
-          <h2 class="panel-title" style="margin:0;">Turn itinerary</h2>
-          <span class="turns-count" id="turns-count">0 turns</span>
-        </div>
-        <ul class="turns-list" id="turns-list"></ul>
-      </section>
-
-      <!-- Dashboard Widgets -->
-      <section class="panel dashboard-panel">
-        <h2 class="panel-title">Dashboard</h2>
-        <div class="widget-grid">
-          <div class="widget">
-            <span class="widget-icon" aria-hidden="true">🛰️</span>
-            <div class="widget-body">
-              <span class="widget-value" id="widget-gps">Searching…</span>
-              <span class="widget-label">GPS status</span>
+          <!-- Helmet Left/Right Visual Zone Preview -->
+          <div class="helmet-preview-card" aria-hidden="true">
+            <div class="helmet-zone helmet-zone-left" id="helmet-vis-left">
+              <span class="helmet-zone-label">LEFT</span>
+              <span class="helmet-zone-sub">GPIO 12</span>
+            </div>
+            <div class="helmet-core">
+              <span class="helmet-emoji">🪖</span>
+              <span class="helmet-core-label">HELMET</span>
+            </div>
+            <div class="helmet-zone helmet-zone-right" id="helmet-vis-right">
+              <span class="helmet-zone-label">RIGHT</span>
+              <span class="helmet-zone-sub">GPIO 14</span>
             </div>
           </div>
-          <div class="widget">
-            <span class="widget-icon" aria-hidden="true">🪖</span>
-            <div class="widget-body">
-              <span class="widget-value" id="widget-ble">Disconnected</span>
-              <span class="widget-label">Haptic helmet</span>
-            </div>
+
+          <div class="ble-row">
+            <button class="btn btn-primary" id="ble-connect-btn" type="button">
+              <svg viewBox="0 0 24 24" width="18" height="18"><path d="M6.5 6.5l11 11L12 23V12L6.5 17.5M12 1v11l5.5-5.5M6.5 6.5L17.5 17.5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Pair helmet
+            </button>
+            <button class="btn btn-ghost" id="ble-disconnect-btn" type="button" disabled>Disconnect</button>
           </div>
-          <div class="widget">
-            <span class="widget-icon" aria-hidden="true">🧭</span>
-            <div class="widget-body">
-              <span class="widget-value" id="widget-nav">Idle</span>
-              <span class="widget-label">Navigation</span>
-            </div>
+
+          <div class="ble-test-row" id="ble-test-row" hidden>
+            <span class="panel-desc" style="margin:0; width: 100%;">Test motor patterns:</span>
+            <button class="chip" type="button" data-cmd="0x01">Slight L</button>
+            <button class="chip" type="button" data-cmd="0x02">Slight R</button>
+            <button class="chip" type="button" data-cmd="0x11">Left</button>
+            <button class="chip" type="button" data-cmd="0x12">Right</button>
+            <button class="chip" type="button" data-cmd="0x21">Sharp L</button>
+            <button class="chip" type="button" data-cmd="0x22">Sharp R</button>
+            <button class="chip" type="button" data-cmd="0x30">U-Turn</button>
+            <button class="chip" type="button" data-cmd="0x31">Hwy Exit L</button>
+            <button class="chip" type="button" data-cmd="0x32">Hwy Exit R</button>
+            <button class="chip" type="button" data-cmd="0x41">Roundabout 1</button>
+            <button class="chip" type="button" data-cmd="0x51">Warn L</button>
+            <button class="chip" type="button" data-cmd="0x52">Warn R</button>
+            <button class="chip" type="button" data-cmd="0xB0">Reroute</button>
+            <button class="chip" type="button" data-cmd="0xA0">Arrived</button>
+
+            <details class="haptic-legend">
+              <summary>View Haptic Dictionary</summary>
+              <table class="legend-table">
+                <tr><th>Pattern</th><th>Stage</th><th>Vibration</th></tr>
+                <tr><td>Slight Turn</td><td>Now</td><td>1x short pulse (L/R)</td></tr>
+                <tr><td>Normal Turn</td><td>Now</td><td>1x solid pulse (L/R)</td></tr>
+                <tr><td>Sharp Turn</td><td>Now</td><td>2x long pulses (L/R)</td></tr>
+                <tr><td>U-Turn</td><td>Now</td><td>2x pulses (Both sides)</td></tr>
+                <tr><td>Hwy Exit</td><td>Now</td><td>3x rapid pulses (L/R)</td></tr>
+                <tr><td>Roundabout</td><td>Now</td><td>N pulses (N = Exit #)</td></tr>
+                <tr><td>Early Warn</td><td>80–220m</td><td>Prepare pulse (0x51–0x56)</td></tr>
+                <tr><td>Reroute</td><td>Alert</td><td>Wave Sweep (L-L-R-R)</td></tr>
+                <tr><td>Arrived</td><td>End</td><td>Alternating L/R (3x)</td></tr>
+              </table>
+            </details>
           </div>
-          <div class="widget">
-            <span class="widget-icon" aria-hidden="true">📏</span>
-            <div class="widget-body">
-              <span class="widget-value" id="widget-distance">—</span>
-              <span class="widget-label">Distance left</span>
-            </div>
-          </div>
-          <div class="widget">
-            <span class="widget-icon" aria-hidden="true">⏱️</span>
-            <div class="widget-body">
-              <span class="widget-value" id="widget-eta">—</span>
-              <span class="widget-label">ETA</span>
-            </div>
-          </div>
-          <div class="widget">
-            <span class="widget-icon" aria-hidden="true">⚡</span>
-            <div class="widget-body">
-              <span class="widget-value" id="widget-speed">0 km/h</span>
-              <span class="widget-label">Speed</span>
-            </div>
-          </div>
-          <div class="widget widget-wide">
-            <div class="widget-body widget-progress-body">
-              <div class="widget-progress-head">
-                <span class="widget-label">Route progress</span>
-                <span class="widget-value small" id="widget-progress-pct">0%</span>
+        </section>
+
+        <!-- Dashboard Widgets -->
+        <section class="panel dashboard-panel">
+          <h2 class="panel-title">Live telemetry</h2>
+          <div class="widget-grid">
+            <div class="widget">
+              <span class="widget-icon" aria-hidden="true">🛰️</span>
+              <div class="widget-body">
+                <span class="widget-value" id="widget-gps">Searching…</span>
+                <span class="widget-label">GPS status</span>
               </div>
-              <div class="progress-track"><div class="progress-fill" id="widget-progress-fill"></div></div>
+            </div>
+            <div class="widget">
+              <span class="widget-icon" aria-hidden="true">🪖</span>
+              <div class="widget-body">
+                <span class="widget-value" id="widget-ble">Disconnected</span>
+                <span class="widget-label">Haptic helmet</span>
+              </div>
+            </div>
+            <div class="widget">
+              <span class="widget-icon" aria-hidden="true">🧭</span>
+              <div class="widget-body">
+                <span class="widget-value" id="widget-nav">Idle</span>
+                <span class="widget-label">Navigation</span>
+              </div>
+            </div>
+            <div class="widget">
+              <span class="widget-icon" aria-hidden="true">📏</span>
+              <div class="widget-body">
+                <span class="widget-value" id="widget-distance">—</span>
+                <span class="widget-label">Distance left</span>
+              </div>
+            </div>
+            <div class="widget">
+              <span class="widget-icon" aria-hidden="true">⏱️</span>
+              <div class="widget-body">
+                <span class="widget-value" id="widget-eta">—</span>
+                <span class="widget-label">ETA</span>
+              </div>
+            </div>
+            <div class="widget">
+              <span class="widget-icon" aria-hidden="true">⚡</span>
+              <div class="widget-body">
+                <span class="widget-value" id="widget-speed">0 km/h</span>
+                <span class="widget-label">Speed</span>
+              </div>
+            </div>
+            <div class="widget widget-wide">
+              <div class="widget-body widget-progress-body">
+                <div class="widget-progress-head">
+                  <span class="widget-label">Route progress</span>
+                  <span class="widget-value small" id="widget-progress-pct">0%</span>
+                </div>
+                <div class="progress-track"><div class="progress-fill" id="widget-progress-fill"></div></div>
+              </div>
+            </div>
+            <div class="widget widget-wide">
+              <span class="widget-icon" aria-hidden="true">📶</span>
+              <div class="widget-body">
+                <span class="widget-value" id="widget-signal">Strong</span>
+                <span class="widget-label">Link signal</span>
+              </div>
             </div>
           </div>
-          <div class="widget">
-            <span class="widget-icon" aria-hidden="true">📶</span>
-            <div class="widget-body">
-              <span class="widget-value" id="widget-signal">Strong</span>
-              <span class="widget-label">Signal</span>
+        </section>
+      </div>
+
+      <!-- ======== TAB 3: PIT STOPS (NEARBY SERVICES) ======== -->
+      <div class="tab-panel" data-panel="stops">
+        <section class="panel nearby-panel">
+          <div class="panel-head-row">
+            <h2 class="panel-title">Nearby pit stops</h2>
+            <span class="panel-kicker">4 km radius</span>
+          </div>
+          <p class="panel-desc">Find fuel, EV charging, police, or medical help around your position and route there in one tap.</p>
+          <div class="nearby-filters" id="nearby-filters">
+            <button class="chip chip-toggle" type="button" data-type="fuel" aria-pressed="false">⛽ Petrol</button>
+            <button class="chip chip-toggle" type="button" data-type="charging" aria-pressed="false">🔌 Charging</button>
+            <button class="chip chip-toggle" type="button" data-type="hospital" aria-pressed="false">🏥 Hospitals</button>
+            <button class="chip chip-toggle" type="button" data-type="police" aria-pressed="false">🚓 Police</button>
+          </div>
+          <ul class="nearby-list" id="nearby-list">
+            <li class="nearby-empty">Select a category above to scan nearby pit stops.</li>
+          </ul>
+        </section>
+      </div>
+
+      <!-- ======== TAB 4: RIDE SETUP & PREFERENCES ======== -->
+      <div class="tab-panel" data-panel="setup">
+        <section class="panel settings-panel">
+          <h2 class="panel-title">Ride preferences</h2>
+          <div class="setting-row">
+            <span>Voice guidance</span>
+            <button class="toggle" id="voice-toggle" type="button" role="switch" aria-checked="true">
+              <span class="toggle-knob"></span>
+            </button>
+          </div>
+          <div class="setting-row">
+            <span>Haptic feedback</span>
+            <button class="toggle" id="haptic-toggle" type="button" role="switch" aria-checked="true">
+              <span class="toggle-knob"></span>
+            </button>
+          </div>
+          <div class="setting-row">
+            <span>Phone vibrate fallback</span>
+            <button class="toggle" id="vibrate-toggle" type="button" role="switch" aria-checked="true">
+              <span class="toggle-knob"></span>
+            </button>
+          </div>
+          <div class="setting-row">
+            <span>Auto-focus ride cockpit</span>
+            <button class="toggle" id="ridefocus-toggle" type="button" role="switch" aria-checked="true">
+              <span class="toggle-knob"></span>
+            </button>
+          </div>
+          <div class="setting-row">
+            <span>Units</span>
+            <div class="segmented" id="units-segmented">
+              <button class="segment active" type="button" data-unit="metric">km</button>
+              <button class="segment" type="button" data-unit="imperial">mi</button>
             </div>
           </div>
-        </div>
-      </section>
-
-      <!-- Haptic Helmet Panel -->
-      <section class="panel ble-panel">
-        <h2 class="panel-title">Haptic helmet</h2>
-        <p class="panel-desc">Connect the HapticHelmet device to receive two-stage turn-by-turn vibration cues (ESP32 + Web Bluetooth).</p>
-        <div class="ble-row">
-          <button class="btn btn-secondary" id="ble-connect-btn">
-            <svg viewBox="0 0 24 24" width="18" height="18"><path d="M6.5 6.5l11 11L12 23V12L6.5 17.5M12 1v11l5.5-5.5M6.5 6.5L17.5 17.5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            Connect helmet
-          </button>
-          <button class="btn btn-ghost" id="ble-disconnect-btn" disabled>Disconnect</button>
-        </div>
-        <div class="ble-test-row" id="ble-test-row" hidden>
-          <span class="panel-desc" style="margin:0; width: 100%;">Test motor patterns:</span>
-          <button class="chip" data-cmd="0x01">Slight L</button>
-          <button class="chip" data-cmd="0x02">Slight R</button>
-          <button class="chip" data-cmd="0x11">Left</button>
-          <button class="chip" data-cmd="0x12">Right</button>
-          <button class="chip" data-cmd="0x21">Sharp L</button>
-          <button class="chip" data-cmd="0x22">Sharp R</button>
-          <button class="chip" data-cmd="0x30">U-Turn</button>
-          <button class="chip" data-cmd="0x31">Hwy Exit L</button>
-          <button class="chip" data-cmd="0x32">Hwy Exit R</button>
-          <button class="chip" data-cmd="0x41">Roundabout Exit 1</button>
-          <button class="chip" data-cmd="0x51">Warn L</button>
-          <button class="chip" data-cmd="0x52">Warn R</button>
-          <button class="chip" data-cmd="0xB0">Reroute</button>
-          <button class="chip" data-cmd="0xA0">Arrived</button>
-
-          <details class="haptic-legend">
-            <summary>View Haptic Dictionary</summary>
-            <table class="legend-table">
-              <tr><th>Pattern</th><th>Stage</th><th>Vibration</th></tr>
-              <tr><td>Slight Turn</td><td>Now</td><td>1x short pulse (L/R)</td></tr>
-              <tr><td>Normal Turn</td><td>Now</td><td>1x solid pulse (L/R)</td></tr>
-              <tr><td>Sharp Turn</td><td>Now</td><td>2x long pulses (L/R)</td></tr>
-              <tr><td>U-Turn</td><td>Now</td><td>2x pulses (Both sides)</td></tr>
-              <tr><td>Hwy Exit</td><td>Now</td><td>3x rapid pulses (L/R)</td></tr>
-              <tr><td>Roundabout</td><td>Now</td><td>N pulses (N = Exit #)</td></tr>
-              <tr><td>Early Warn</td><td>80–220m</td><td>Prepare pulse (0x51–0x56)</td></tr>
-              <tr><td>Reroute</td><td>Alert</td><td>Wave Sweep (L-L-R-R)</td></tr>
-              <tr><td>Arrived</td><td>End</td><td>Alternating L/R (3x)</td></tr>
-            </table>
-          </details>
-        </div>
-      </section>
-
-      <!-- Favorite Routes -->
-      <section class="panel favorites-panel">
-        <h2 class="panel-title">Favorite routes</h2>
-        <ul class="favorites-list" id="favorites-list" style="list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px;">
-          <li class="favorites-empty" style="font-size:0.8rem; color:var(--text-faint);">No saved routes yet.</li>
-        </ul>
-      </section>
-
-      <!-- Nearby Services -->
-      <section class="panel nearby-panel">
-        <h2 class="panel-title">Nearby services</h2>
-        <div class="nearby-filters" id="nearby-filters">
-          <button class="chip chip-toggle" data-type="hospital" aria-pressed="false">🏥 Hospitals</button>
-          <button class="chip chip-toggle" data-type="police" aria-pressed="false">🚓 Police</button>
-          <button class="chip chip-toggle" data-type="fuel" aria-pressed="false">⛽ Petrol</button>
-          <button class="chip chip-toggle" data-type="charging" aria-pressed="false">🔌 Charging</button>
-        </div>
-        <ul class="nearby-list" id="nearby-list">
-          <li class="nearby-empty">Select a category to find nearby places around your location.</li>
-        </ul>
-      </section>
-
-      <!-- Settings -->
-      <section class="panel settings-panel">
-        <h2 class="panel-title">Preferences</h2>
-        <div class="setting-row">
-          <span>Voice guidance</span>
-          <button class="toggle" id="voice-toggle" role="switch" aria-checked="true">
-            <span class="toggle-knob"></span>
-          </button>
-        </div>
-        <div class="setting-row">
-          <span>Haptic feedback</span>
-          <button class="toggle" id="haptic-toggle" role="switch" aria-checked="true">
-            <span class="toggle-knob"></span>
-          </button>
-        </div>
-        <div class="setting-row">
-          <span>Phone vibrate fallback</span>
-          <button class="toggle" id="vibrate-toggle" role="switch" aria-checked="true">
-            <span class="toggle-knob"></span>
-          </button>
-        </div>
-        <div class="setting-row">
-          <span>Auto-focus ride cockpit</span>
-          <button class="toggle" id="ridefocus-toggle" role="switch" aria-checked="true">
-            <span class="toggle-knob"></span>
-          </button>
-        </div>
-        <div class="setting-row">
-          <span>Units</span>
-          <div class="segmented" id="units-segmented">
-            <button class="segment active" data-unit="metric">km</button>
-            <button class="segment" data-unit="imperial">mi</button>
-          </div>
-        </div>
-        <button class="btn btn-ghost" id="share-route-btn">Share route</button>
-        <p class="kbd-hint">
-          <strong>Keyboard:</strong> <kbd>Space</kbd> mute · <kbd>S</kbd> start · <kbd>F</kbd> cockpit · <kbd>R</kbd> recenter · <kbd>Esc</kbd> stop · <kbd>?</kbd> help
-        </p>
-      </section>
+          <button class="btn btn-secondary" id="share-route-btn" type="button" style="margin-top: 12px; width: 100%;">Share active route</button>
+          <p class="kbd-hint">
+            <strong>Keyboard:</strong> <kbd>Space</kbd> mute · <kbd>S</kbd> start · <kbd>F</kbd> cockpit · <kbd>R</kbd> recenter · <kbd>Esc</kbd> stop · <kbd>?</kbd> help
+          </p>
+        </section>
+      </div>
     </aside>
 
-    <!-- ============ MAP AREA ============ -->
+    <!-- ============ MAP AREA (RIDING COCKPIT) ============ -->
     <main class="map-area">
       <div id="map" class="map" role="application" aria-label="Navigation map"></div>
 
@@ -365,17 +423,17 @@
 
       <!-- Riding Cockpit Turn Card -->
       <div class="turn-hud-stack hidden" id="turn-card">
-        <div class="turn-card">
+        <div class="turn-card" id="turn-card-surface">
           <div class="turn-icon" id="turn-icon" aria-hidden="true">↑</div>
           <div class="turn-info">
             <div class="turn-meta-row">
               <span class="turn-stage-badge" id="turn-stage-badge">NEXT TURN</span>
               <span class="turn-haptic-badge hidden" id="turn-haptic-badge">1× L</span>
             </div>
-            <span class="turn-instruction" id="turn-instruction">Head north</span>
             <span class="turn-distance" id="turn-distance">—</span>
+            <span class="turn-instruction" id="turn-instruction">Head north</span>
           </div>
-          <button class="icon-btn turn-mute-btn" id="mute-btn" aria-label="Mute voice" data-tip="Mute voice">
+          <button class="icon-btn turn-mute-btn" id="mute-btn" type="button" aria-label="Mute voice" data-tip="Mute voice">
             <svg id="mute-icon" viewBox="0 0 24 24" width="22" height="22"><path d="M11 5L6 9H2v6h4l5 4V5z" fill="currentColor"/><path d="M16 8a5 5 0 010 8M19 5a8 8 0 010 14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
           </button>
           <div class="turn-proximity-track" aria-hidden="true">
@@ -394,7 +452,7 @@
       <!-- Off-route banner -->
       <div class="banner banner-warning hidden" id="offroute-banner">
         <svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 2L2 21h20L12 2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><line x1="12" y1="9" x2="12" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17.5" r="1" fill="currentColor"/></svg>
-        <span>You're off route — recalculating…</span>
+        <span>Off route — recalculating…</span>
       </div>
 
       <!-- Simulation progress bar -->
@@ -408,13 +466,16 @@
           <option value="4">4x</option>
           <option value="10">10x</option>
         </select>
-        <button class="icon-btn" id="sim-stop-btn" aria-label="Stop simulation">
+        <button class="icon-btn" id="sim-stop-btn" type="button" aria-label="Stop simulation">
           <svg viewBox="0 0 24 24" width="18" height="18"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></svg>
         </button>
       </div>
 
-      <!-- Live nav bottom cockpit bar -->
+      <!-- Live nav instrument cluster bottom bar -->
       <div class="nav-bottombar hidden" id="nav-bottombar">
+        <div class="nbb-progress-track" aria-hidden="true">
+          <div class="nbb-progress-fill" id="nbb-progress-fill"></div>
+        </div>
         <div class="nav-bottombar-stat nbb-speed-stat">
           <span class="nbb-value" id="nbb-speed">0 km/h</span>
           <span class="nbb-label">Speed</span>
@@ -428,31 +489,34 @@
           <span class="nbb-label">ETA</span>
         </div>
         <div class="nbb-actions">
-          <button class="btn btn-secondary nbb-recenter hidden" id="nbb-recenter-btn" aria-label="Recenter on rider">
+          <button class="btn btn-secondary nbb-recenter hidden" id="nbb-recenter-btn" type="button" aria-label="Recenter on rider">
             Recenter
           </button>
-          <button class="icon-btn nbb-itinerary-btn" id="nbb-itinerary-btn" aria-label="Toggle route details" data-tip="Route panel">
+          <button class="icon-btn nbb-voice-btn" id="nbb-voice-btn" type="button" aria-label="Mute or unmute voice" data-tip="Voice (Space)">
+            <svg id="nbb-voice-icon" viewBox="0 0 24 24" width="20" height="20"><path d="M11 5L6 9H2v6h4l5 4V5z" fill="currentColor"/><path d="M16 8a5 5 0 010 8M19 5a8 8 0 010 14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+          </button>
+          <button class="icon-btn nbb-itinerary-btn" id="nbb-itinerary-btn" type="button" aria-label="Open route itinerary" data-tip="Turns">
             <svg viewBox="0 0 24 24" width="20" height="20"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
           </button>
-          <button class="btn btn-danger nbb-stop" id="stop-navigation-btn">End</button>
+          <button class="btn btn-danger nbb-stop" id="stop-navigation-btn" type="button">End</button>
         </div>
       </div>
 
       <!-- Floating action buttons -->
       <div class="fab-stack">
-        <button class="fab fab-recenter hidden" id="recenter-fab" aria-label="Follow rider" data-tip="Recenter (R)">
+        <button class="fab fab-recenter hidden" id="recenter-fab" type="button" aria-label="Follow rider" data-tip="Recenter (R)">
           <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 2L4.5 20.3l.7.7L12 18l6.8 3 .7-.7z" fill="currentColor"/></svg>
         </button>
-        <button class="fab" id="pitch-fab" aria-label="Toggle 3D Pitch" data-tip="3D Pitch">
+        <button class="fab" id="pitch-fab" type="button" aria-label="Toggle 3D Pitch" data-tip="3D Pitch">
           <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 17h16M5 12h14M6 7h12" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
         </button>
-        <button class="fab" id="locate-fab" aria-label="Center on my location" data-tip="My location">
+        <button class="fab" id="locate-fab" type="button" aria-label="Center on my location" data-tip="My location">
           <svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         </button>
-        <button class="fab" id="zoom-in-fab" aria-label="Zoom in">
+        <button class="fab" id="zoom-in-fab" type="button" aria-label="Zoom in">
           <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
         </button>
-        <button class="fab" id="zoom-out-fab" aria-label="Zoom out">
+        <button class="fab" id="zoom-out-fab" type="button" aria-label="Zoom out">
           <svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
         </button>
       </div>
@@ -470,7 +534,7 @@
     <div class="modal sos-modal" role="dialog" aria-modal="true" aria-labelledby="sos-title">
       <div class="sos-modal-header">
         <h2 id="sos-title">🚨 Emergency SOS</h2>
-        <button class="icon-btn" id="sos-close-btn" aria-label="Close">
+        <button class="icon-btn" id="sos-close-btn" type="button" aria-label="Close">
           <svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         </button>
       </div>
@@ -478,9 +542,9 @@
       <div class="sos-location" id="sos-location">Fetching location…</div>
       <textarea class="sos-message" id="sos-message" readonly rows="4"></textarea>
       <div class="sos-actions">
-        <button class="btn btn-primary" id="sos-copy-btn">Copy message</button>
+        <button class="btn btn-primary" id="sos-copy-btn" type="button">Copy message</button>
         <a class="btn btn-secondary" id="sos-sms-btn" href="#">Send SMS</a>
-        <button class="btn btn-danger" id="sos-call-btn">Call 112</button>
+        <button class="btn btn-danger" id="sos-call-btn" type="button">Call 112</button>
       </div>
       <p class="sos-note">Ready for Twilio / EmailJS integration to auto-notify saved emergency contacts.</p>
     </div>
@@ -491,7 +555,7 @@
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
       <div class="sos-modal-header">
         <h2 id="shortcuts-title">Keyboard shortcuts</h2>
-        <button class="icon-btn" id="shortcuts-close-btn" aria-label="Close">
+        <button class="icon-btn" id="shortcuts-close-btn" type="button" aria-label="Close">
           <svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         </button>
       </div>
